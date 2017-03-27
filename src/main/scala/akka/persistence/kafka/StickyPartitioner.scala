@@ -7,7 +7,7 @@ import org.apache.kafka.common.Cluster
 
 class StickyPartitioner() extends Partitioner {
 
-  var partition = 0
+  private var partition = 0
 
   override def close(): Unit = {}
 
