@@ -23,9 +23,9 @@ class KafkaJournalConfig(config: Config) extends MetadataConsumerConfig(config) 
 
   def journalProducerConfig(brokers: List[Broker]): Properties =
     configToProperties(config.getConfig("producer"),
-      Map("metadata.broker.list" -> Broker.toString(brokers), "partition" -> config.getString("partition")))
+      Map("metadata.broker.list" -> Broker.toString(brokers), "partition" -> config.getString("partition"),"key.serializer" -> config.getString("key.serializer")))
 
   def eventProducerConfig(brokers: List[Broker]): Properties =
     configToProperties(config.getConfig("event.producer"),
-      Map("metadata.broker.list" -> Broker.toString(brokers)))
+      Map("metadata.broker.list" -> Broker.toString(brokers),"key.serializer" -> config.getString("key.serializer")))
 }
