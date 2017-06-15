@@ -1,26 +1,24 @@
 package akka.persistence.kafka.snapshot
 
-import scala.concurrent.{Promise, Future}
-import scala.concurrent.duration._
-import scala.util._
-
 import akka.actor._
-import akka.pattern.{ask, pipe}
+import akka.pattern.ask
 import akka.persistence._
-import akka.persistence.JournalProtocol._
-import akka.persistence.snapshot.SnapshotStore
-import akka.persistence.kafka._
-import akka.persistence.kafka.MetadataConsumer.Broker
 import akka.persistence.kafka.BrokerWatcher.BrokersUpdated
+import akka.persistence.kafka.MetadataConsumer.Broker
+import akka.persistence.kafka._
+import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import akka.persistence.snapshot.SnapshotStore
 import akka.serialization.SerializationExtension
 import akka.util.Timeout
+import org.apache.kafka.clients.producer
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
 
-import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import scala.concurrent.Future
+import scala.concurrent.duration._
 
-import _root_.kafka.producer.{Producer, KeyedMessage}
+
 
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
-  import SnapshotProtocol._
   import context.dispatcher
 
   val extension = Persistence(context.system)
@@ -60,16 +58,19 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     }
   }
 
+
+
+
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = Future {
     val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, snapshot)).get
-    val snapshotMessage = new KeyedMessage[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
-    val snapshotProducer = new Producer[String, Array[Byte]](config.producerConfig(brokers))
-    try {
-      // TODO: take a producer from a pool
-      snapshotProducer.send(snapshotMessage)
-    } finally {
-      snapshotProducer.close()
+    val snapshotMessage = new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
+    val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig(brokers))
+    object producerCloseCallback extends producer.Callback {
+      override def onCompletion(metadata: RecordMetadata, exception: Exception): Unit = {
+        snapshotProducer.close()
+      }
     }
+    snapshotProducer.send(snapshotMessage,producerCloseCallback).get
   }
 
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
