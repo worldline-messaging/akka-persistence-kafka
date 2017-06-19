@@ -15,10 +15,13 @@ import akka.util.Timeout
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.collection.immutable
-import scala.concurrent.Future
-import scala.util.Try
+import scala.collection.immutable.Seq
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success, Try}
 
 private case class SeqOfPersistentReprContainer(messages: Seq[PersistentRepr])
+
+private case class ResultMessage(seqVal:Seq[Try[Unit]])
 
 class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLogging {
   import context.dispatcher
@@ -68,14 +71,19 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def asyncWriteMessages(messages: immutable.Seq[AtomicWrite]): Future[immutable.Seq[Try[Unit]]] = {
     
-    val writes = Future.sequence(messages.groupBy(_.persistenceId).map {
+    val promise = Promise[Seq[Try[Unit]]]()
+
+    Future.sequence(messages.groupBy(_.persistenceId).map {
       case (pid,aws) => {
         val msgs = aws.map(aw => aw.payload).flatten
-        writerFor(pid).ask(SeqOfPersistentReprContainer(msgs))(writeTimeout).mapTo[Seq[Try[Unit]]]
+        writerFor(pid).ask(SeqOfPersistentReprContainer(msgs))(writeTimeout).mapTo[ResultMessage]
       }
-    }).map { x => x.flatten.to[collection.immutable.Seq] }
-    
-    writes
+    }.toSeq).onComplete {
+      case Success(_) => promise.complete(Success(Nil)) // Nil == all good
+      case Failure(e) => promise.failure(e)
+    }
+
+    promise.future
   }
 
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] =
