@@ -1,27 +1,27 @@
 package akka.persistence.kafka.journal
 
-import scala.collection.immutable
-import scala.util.Try
-
-import akka.persistence.journal.AsyncWriteJournal
-import akka.serialization.{Serialization, SerializationExtension}
-
-import kafka.producer._
-
-import scala.concurrent.Future
-import scala.concurrent.duration._
+import java.util.Properties
 
 import akka.actor._
 import akka.pattern.ask
-import akka.persistence.{AtomicWrite, PersistentRepr}
-import akka.persistence.kafka._
-import akka.persistence.kafka.MetadataConsumer.Broker
+import akka.persistence.journal.AsyncWriteJournal
 import akka.persistence.kafka.BrokerWatcher.BrokersUpdated
+import akka.persistence.kafka.MetadataConsumer.Broker
+import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import akka.persistence.{AtomicWrite, PersistentRepr}
+import akka.serialization.{Serialization, SerializationExtension}
 import akka.util.Timeout
-import scala.util.Success
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+
+import scala.collection.immutable
+import scala.collection.immutable.Seq
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success, Try}
 
 private case class SeqOfPersistentReprContainer(messages: Seq[PersistentRepr])
+
+private case class ResultMessage(seqVal:Seq[Try[Unit]])
 
 class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLogging {
   import context.dispatcher
@@ -64,21 +64,26 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   var eventProducerConfig = config.eventProducerConfig(brokers)
 
   var writers: Vector[ActorRef] = Vector.fill(config.writeConcurrency)(writer())
-  val writeTimeout = Timeout(journalProducerConfig.requestTimeoutMs.millis)
+  val writeTimeout = Timeout(config.requestTimeoutInMs)
 
   // Transient deletions only to pass TCK (persistent not supported)
   var deletions: Deletions = Map.empty
 
   def asyncWriteMessages(messages: immutable.Seq[AtomicWrite]): Future[immutable.Seq[Try[Unit]]] = {
     
-    val writes = Future.sequence(messages.groupBy(_.persistenceId).map {
+    val promise = Promise[Seq[Try[Unit]]]()
+
+    Future.sequence(messages.groupBy(_.persistenceId).map {
       case (pid,aws) => {
         val msgs = aws.map(aw => aw.payload).flatten
-        writerFor(pid).ask(SeqOfPersistentReprContainer(msgs))(writeTimeout).mapTo[Seq[Try[Unit]]]
+        writerFor(pid).ask(SeqOfPersistentReprContainer(msgs))(writeTimeout).mapTo[ResultMessage]
       }
-    }).map { x => x.flatten.to[collection.immutable.Seq] }
-    
-    writes
+    }.toSeq).onComplete {
+      case Success(_) => promise.complete(Success(Nil)) // Nil == all good
+      case Failure(e) => promise.failure(e)
+    }
+
+    promise.future
   }
 
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] =
@@ -145,8 +150,8 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 }
 
 private case class KafkaJournalWriterConfig(
-  journalProducerConfig: ProducerConfig,
-  eventProducerConfig: ProducerConfig,
+  journalProducerConfig: Properties,
+  eventProducerConfig: Properties,
   evtTopicMapper: EventTopicMapper,
   serialization: Serialization)
 
@@ -172,18 +177,19 @@ private class KafkaJournalWriter(var config: KafkaJournalWriterConfig) extends A
   def writeMessages(messages: Seq[PersistentRepr]): Seq[Try[Unit]] = {
     val keyedMsgs = for {
       m <- messages
-    } yield new KeyedMessage[String, Array[Byte]](journalTopic(m.persistenceId), "static", config.serialization.serialize(m).get)
+    } yield new ProducerRecord[String, Array[Byte]](journalTopic(m.persistenceId), "static", config.serialization.serialize(m).get)
 
     val keyedEvents = for {
       m <- messages
       e = Event(m.persistenceId, m.sequenceNr, m.payload)
       t <- config.evtTopicMapper.topicsFor(e)
-    } yield new KeyedMessage(t, e.persistenceId, config.serialization.serialize(e).get)
+    } yield new ProducerRecord[String, Array[Byte]](t, e.persistenceId, config.serialization.serialize(e).get)
+
+    val journalReplies = keyedMsgs.map(record => Try(msgProducer.send(record).get()))
+
+    keyedEvents.map(evtProducer.send)
     
-    msgProducer.send(keyedMsgs: _*)
-    evtProducer.send(keyedEvents: _*)
-    
-    keyedMsgs.map(_ => Success())    
+    journalReplies.map(_.map(_ => {}))
   }
 
   override def postStop(): Unit = {
@@ -192,7 +198,7 @@ private class KafkaJournalWriter(var config: KafkaJournalWriterConfig) extends A
     super.postStop()
   }
 
-  private def createMessageProducer() = new Producer[String, Array[Byte]](config.journalProducerConfig)
+  private def createMessageProducer() = new KafkaProducer[String, Array[Byte]](config.journalProducerConfig)
 
-  private def createEventProducer() = new Producer[String, Array[Byte]](config.eventProducerConfig)
+  private def createEventProducer() = new KafkaProducer[String, Array[Byte]](config.eventProducerConfig)
 }
