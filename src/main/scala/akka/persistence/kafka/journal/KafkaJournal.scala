@@ -19,7 +19,7 @@ import akka.persistence.kafka.MetadataConsumer.Broker
 import akka.persistence.kafka.BrokerWatcher.BrokersUpdated
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import akka.util.Timeout
-import scala.util.Success
+import scala.util.{Success,Failure}
 
 private case class SeqOfPersistentReprContainer(messages: Seq[PersistentRepr])
 
@@ -179,11 +179,15 @@ private class KafkaJournalWriter(var config: KafkaJournalWriterConfig) extends A
       e = Event(m.persistenceId, m.sequenceNr, m.payload)
       t <- config.evtTopicMapper.topicsFor(e)
     } yield new KeyedMessage(t, e.persistenceId, config.serialization.serialize(e).get)
-    
-    msgProducer.send(keyedMsgs: _*)
-    evtProducer.send(keyedEvents: _*)
-    
-    keyedMsgs.map(_ => Success())    
+
+    try {
+      msgProducer.send(keyedMsgs: _*)
+      evtProducer.send(keyedEvents: _*)
+      keyedMsgs.map(_ => Success())
+    } catch {
+      case e => keyedMsgs.map(_ => Failure(e))
+    }
+
   }
 
   override def postStop(): Unit = {
