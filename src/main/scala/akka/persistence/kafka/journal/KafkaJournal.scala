@@ -185,7 +185,7 @@ private class KafkaJournalWriter(var config: KafkaJournalWriterConfig) extends A
       evtProducer.send(keyedEvents: _*)
       keyedMsgs.map(_ => Success())
     } catch {
-      case e => keyedMsgs.map(_ => Failure(e))
+      case e: Throwable => keyedMsgs.map(_ => Failure(e))
     }
 
   }

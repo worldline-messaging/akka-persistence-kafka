@@ -2,17 +2,15 @@ organization := "com.github.krasserm"
 
 name := "akka-persistence-kafka"
 
-version := "0.6"
+version := "0.6.1"
 
-scalaVersion := "2.12.3"
-
-crossScalaVersions := Seq("2.10.4", "2.11.6", "2.12.1")
+scalaVersion := "2.12.4"
 
 resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
 
 parallelExecution in Test := false
 
-publishArtifact in Test := true
+publishArtifact in Test := false
 
 libraryDependencies ++= Seq(
   "com.google.protobuf"  % "protobuf-java"                 % "2.6.1",
@@ -37,7 +35,7 @@ libraryDependencies ++= Seq(
   artifact.name + "_" + sv.binary + "-" + suffix + "." + artifact.extension
 }*/
 
+bintrayOrganization := Some("worldline-messaging-org")
 publishTo := Some("Bintray API Realm" at "https://api.bintray.com/maven/worldline-messaging-org/maven/akka-persistence-kafka")
-credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
