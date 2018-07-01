@@ -2,7 +2,7 @@ organization := "com.github.krasserm"
 
 name := "akka-persistence-kafka"
 
-version := "0.6.2"
+version := "0.6.3"
 
 scalaVersion := "2.12.6"
 
@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"   %% "akka-persistence-tck"          % "2.5.13" % Test,
   "com.typesafe.akka"   %% "akka-testkit"                  % "2.5.13" % Test,
   "commons-io"           % "commons-io"                    % "2.5"      % Test,
-  "org.apache.kafka"    %% "kafka"                         % "0.11.0.0",
+  "org.apache.kafka"    %% "kafka"                         % "0.11.0.2",
   "org.apache.curator"   % "curator-test"                  % "4.0.1"    % Test,
   "org.slf4j" 		 % "slf4j-log4j12" 		   % "1.7.25"	% Test,
   "com.typesafe.akka" 	%% "akka-slf4j" 		   % "2.5.13"	% Test

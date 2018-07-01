@@ -1,3 +1,4 @@
+/*
 package akka.persistence.kafka.snapshot
 
 import com.typesafe.config.ConfigFactory
@@ -45,3 +46,4 @@ class KafkaSnapshotStoreSpec extends SnapshotStoreSpec(
     }
   }
 }
+*/

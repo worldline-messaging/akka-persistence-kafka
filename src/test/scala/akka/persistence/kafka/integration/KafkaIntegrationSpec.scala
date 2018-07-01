@@ -133,7 +133,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
       readJournal(journalTopic(persistenceId)).map(_.payload) should be(Seq("a", "b", "c"))
     }
   }
-
+/*
   "A Kafka snapshot store" when {
     "configured with ignore-orphan = true" must {
       "ignore orphan snapshots (snapshot sequence nr > highest journal sequence nr)" in {
@@ -176,4 +176,5 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
       }*/
     }
   }
+  */
 }
