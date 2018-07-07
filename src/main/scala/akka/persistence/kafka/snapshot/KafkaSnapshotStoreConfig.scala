@@ -11,6 +11,9 @@ class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(co
   val ignoreOrphan: Boolean =
     config.getBoolean("ignore-orphan")
 
+  val snapshotDataless: Boolean =
+    config.getBoolean("snapshot-dataless")
+
   def producerConfig(): Map[String,Object] =
     configToProperties(config.getConfig("producer"),
       Map(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.StringSerializer",

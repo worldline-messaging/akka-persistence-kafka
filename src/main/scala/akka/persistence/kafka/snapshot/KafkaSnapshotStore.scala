@@ -4,7 +4,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 import akka.actor._
-import akka.pattern.{ask, pipe}
+import akka.pattern.ask
 import akka.persistence._
 import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.kafka._
@@ -16,7 +16,6 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import scala.collection.JavaConverters._
 
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
-  import SnapshotProtocol._
   import context.dispatcher
 
   val extension = Persistence(context.system)
@@ -47,6 +46,10 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
+    if (config.snapshotDataless) {
+    //We fool the API to start the recovery at our custom offset stored in the snapshot data as a long
+    metadata.copy(sequenceNr = snapshot.asInstanceOf[Long])
+    }
     val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, snapshot)).get
     val snapshotMessage = new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
     val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)

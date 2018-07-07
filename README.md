@@ -1,25 +1,24 @@
 Kafka Plugins for Akka Persistence
 ==================================
 
-Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.3.11/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
-
-[![Build Status](https://travis-ci.org/krasserm/akka-persistence-kafka.svg?branch=travis)](https://travis-ci.org/krasserm/akka-persistence-kafka)
+Replicated [Akka Persistence](https://doc.akka.io/docs/akka/current/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).  
+Derived from [Martin Krasser implementation](https://github.com/krasserm/akka-persistence-kafka).
 
 Dependency
 ----------
 
 To include the Kafka plugins into your `sbt` project, add the following lines to your `build.sbt` file:
 
-    resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+    "worldline bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
 
-    libraryDependencies += "com.github.krasserm" %% "akka-persistence-kafka" % “0.4”
+    libraryDependencies += "com.github.krasserm" %% "akka-persistence-kafka" % “0.7.0”
 
-This version of `akka-persistence-kafka` depends on Kafka 0.8.2.1, Akka 2.3.11 and is cross-built against Scala 2.10.4 and 2.11.6. A complete list of released versions is [here](https://github.com/krasserm/akka-persistence-kafka/wiki/Releases).
+This version of `akka-persistence-kafka` depends on Kafka 1.1.0, Akka 2.5.13.
 
 Usage hints
 -----------
 
-Kafka does not permanently store log entries but rather deletes them after a configurable _retention time_ which defaults to 7 days in Kafka 0.8.x. Therefore, applications need to take snapshots of their persistent actors at intervals that are smaller than the configured retention time (for example, every 3 days). This ensures that persistent actors can always be recovered successfully. 
+Kafka does not permanently store log entries but rather deletes them after a configurable _retention time_ which defaults to 7 days in Kafka 1.1.0. Therefore, applications need to take snapshots of their persistent actors at intervals that are smaller than the configured retention time (for example, every 3 days). This ensures that persistent actors can always be recovered successfully. 
 
 Alternatively, the retention time can be set to a maximum value so that Kafka will never delete old entries. In this case, all events written by a single persistent actor must fit on a single node. This is a limitation of the current implementation which may be removed in later versions. However, this limitation is likely not relevant when running Kafka with default (or comparable) retention times and taking snapshots.
 
@@ -216,6 +215,12 @@ For example, if an actor's `persistenceId` is `example`, its snapshots are publi
 ### Current limitations
 
 - Deletions are not persistent (which may not be relevant for applications that configure Kafka with reasonably small retention times).
+
+### Special feature
+
+To enable dataless mode using the oldest Kafka offset given by the application to the persistence plugin
+    
+    kafka-snapshot-store.snapshot-dataless = true
 
 Kafka
 -----

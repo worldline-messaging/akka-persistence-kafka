@@ -1,6 +1,5 @@
 package akka.persistence.kafka.journal
 
-import java.io.NotSerializableException
 
 import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
@@ -8,16 +7,13 @@ import akka.persistence.journal.AsyncWriteJournal
 import akka.serialization.{Serialization, SerializationExtension}
 
 import scala.concurrent.{Future, Promise}
-import scala.concurrent.duration._
 import akka.actor._
-import akka.pattern.ask
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.errors.ProducerFencedException
-import akka.util.Timeout
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
@@ -45,9 +41,9 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   override def receivePluginInternal: Receive = localReceive.orElse(super.receivePluginInternal)
 
   private def localReceive: Receive = {
-    case ReadHighestSequenceNr(fromSequenceNr, persistenceId, persistentActor) =>
+    case ReadHighestSequenceNr(fromSequenceNr@_, persistenceId, persistentActor@_) =>
       try {
-        val highest = readHighestSequenceNr(persistenceId, fromSequenceNr)
+        val highest = readHighestSequenceNr(persistenceId)
         sender ! ReadHighestSequenceNrSuccess(highest)
       } catch {
         case e : Exception => sender ! ReadHighestSequenceNrFailure(e)
@@ -83,17 +79,18 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] =
     Future.successful(deleteMessagesTo(persistenceId, toSequenceNr, false))
 
-  def deleteMessagesTo(persistenceId: String, toSequenceNr: Long, permanent: Boolean): Unit =
-    deletions = deletions + (persistenceId -> (toSequenceNr, permanent))
+  def deleteMessagesTo(persistenceId: String, toSequenceNr: Long, permanent: Boolean): Unit = {
+    deletions = deletions + (persistenceId -> ((toSequenceNr, permanent)))
+  }
 
   // --------------------------------------------------------------------------------------
   //  Journal reads
   // --------------------------------------------------------------------------------------
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] =
-    Future(readHighestSequenceNr(persistenceId, fromSequenceNr))
+    Future(readHighestSequenceNr(persistenceId))
 
-  def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
+  def readHighestSequenceNr(persistenceId: String): Long = {
     val topic = journalTopic(persistenceId)
     Math.max(nextOffsetFor(config.txnAwareConsumerConfig, topic, config.partition)-1,0)
   }
@@ -110,12 +107,13 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     val adjustedNum = toSequenceNr - adjustedFrom + 1L
     val adjustedTo = if (max < adjustedNum) adjustedFrom + max - 1L else toSequenceNr
 
-    val lastSequenceNr = {
+    //lastSequenceNr
       val iter = persistentIterator(journalTopic(persistenceId), adjustedFrom - 1L)
       iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foldLeft(adjustedFrom) {
-        case (snr, p) => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p); p.sequenceNr
+        case (snr@_, p) => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p); p.sequenceNr
       }
-    }
+
+    ()
 
   }
 
@@ -181,7 +179,7 @@ private class KafkaJournalWriter(index:Int,config: KafkaJournalConfig,serializat
             evtProducer.commitTransaction()
           }
         }
-        p.success()
+        p.success(())
         i = i + 1
         begin = true
       } catch {

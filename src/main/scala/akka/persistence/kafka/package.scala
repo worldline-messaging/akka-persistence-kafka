@@ -1,7 +1,6 @@
 package akka.persistence
 
 import scala.collection.JavaConverters._
-import java.util.Properties
 
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
@@ -27,7 +26,7 @@ package object kafka {
       rec,
       (metadata: RecordMetadata, exception: Exception) ⇒ {
         if (metadata != null) {
-          promise.complete(Success())
+          promise.complete(Success(()))
           ()
         } else {
           promise.complete(Failure(exception))

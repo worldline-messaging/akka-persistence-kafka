@@ -1,6 +1,5 @@
 package akka.persistence.kafka
 
-import kafka.message._
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 
