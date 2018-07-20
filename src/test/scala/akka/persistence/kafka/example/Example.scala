@@ -20,20 +20,20 @@ class ExampleProcessor(val persistenceId: String) extends PersistentActor {
 
   var state: Int = 0
   def receiveCommand: Receive = {
-    case i: Increment =>
+    case i: Increment ⇒
       persist(i)(update)
-    case "snap" =>
+    case "snap" ⇒
       saveSnapshot(state)
-    case SaveSnapshotSuccess(md) =>
+    case SaveSnapshotSuccess(md) ⇒
       println(s"snapshot saved (metadata = ${md})")
-    case SaveSnapshotFailure(md, e) =>
+    case SaveSnapshotFailure(md, e) ⇒
       println(s"snapshot saving failed (metadata = ${md}, error = ${e.getMessage})")
   }
 
   def receiveRecover: Receive = {
-    case i: Increment =>
+    case i: Increment ⇒
       update(i)
-    case SnapshotOffer(md, snapshot: Int) =>
+    case SnapshotOffer(md, snapshot: Int) ⇒
       state = snapshot
       println(s"state initialized: ${state} (metadata = ${md})")
   }
@@ -46,9 +46,9 @@ class ExampleProcessor(val persistenceId: String) extends PersistentActor {
 
 class ExampleEventTopicMapper extends EventTopicMapper {
   def topicsFor(event: Event): Seq[String] = event.persistenceId match {
-    case "a" => List("topic-a-1", "topic-a-2")
-    case "b" => List("topic-b")
-    case _   => Nil
+    case "a" ⇒ List("topic-a-1", "topic-a-2")
+    case "b" ⇒ List("topic-b")
+    case _   ⇒ Nil
   }
 }
 
@@ -73,10 +73,13 @@ object ExampleConsumer extends App {
   val system = ActorSystem("consumer")
 
   val consConn = Consumer.create(new ConsumerConfig(props))
-  val streams = consConn.createMessageStreams(Map("topic-a-2" -> 1),
-    keyDecoder = new StringDecoder, valueDecoder = new EventDecoder(system))
+  val streams = consConn.createMessageStreams(
+    Map("topic-a-2" → 1),
+    keyDecoder = new StringDecoder,
+    valueDecoder = new EventDecoder(system)
+  )
 
-  streams("topic-a-2")(0).foreach { mm =>
+  streams("topic-a-2")(0).foreach { mm ⇒
     val event: Event = mm.message
     println(s"consumed ${event}")
   }
@@ -89,14 +92,14 @@ object ExampleJournalConsumer extends App {
   props.put("auto.offset.reset", "smallest")
   props.put("auto.commit.enable", "false")
 
-  val system = ActorSystem("example")
+  val system    = ActorSystem("example")
   val extension = SerializationExtension(system)
 
   val consConn = Consumer.create(new ConsumerConfig(props))
-  val streams = consConn.createMessageStreams(Map("a" -> 1),
-    keyDecoder = new StringDecoder, valueDecoder = new DefaultDecoder)
+  val streams =
+    consConn.createMessageStreams(Map("a" → 1), keyDecoder = new StringDecoder, valueDecoder = new DefaultDecoder)
 
-  streams("a")(0).foreach { mm =>
+  streams("a")(0).foreach { mm ⇒
     val persistent: PersistentRepr = extension.deserialize(mm.message, classOf[PersistentRepr]).get
     println(s"consumed ${persistent}")
   }

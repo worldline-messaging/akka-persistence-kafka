@@ -14,8 +14,12 @@ class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(co
   val snapshotDataless: Boolean =
     config.getBoolean("snapshot-dataless")
 
-  def producerConfig(): Map[String,Object] =
-    configToProperties(config.getConfig("producer"),
-      Map(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.StringSerializer",
-        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.ByteArraySerializer"))
+  def producerConfig(): Map[String, Object] =
+    configToProperties(
+      config.getConfig("producer"),
+      Map(
+        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringSerializer",
+        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArraySerializer"
+      )
+    )
 }

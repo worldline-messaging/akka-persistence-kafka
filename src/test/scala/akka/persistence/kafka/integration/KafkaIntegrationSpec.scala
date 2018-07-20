@@ -15,8 +15,7 @@ import org.scalatest._
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 
 object KafkaIntegrationSpec {
-  val config = ConfigFactory.parseString(
-    """
+  val config = ConfigFactory.parseString("""
       |akka.persistence.journal.plugin = "kafka-journal"
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
       |akka.test.single-expect-default = 10s
@@ -25,14 +24,14 @@ object KafkaIntegrationSpec {
 
   class TestPersistentActor(val persistenceId: String, probe: ActorRef) extends PersistentActor {
     def receiveCommand = {
-      case s: String =>
-        persist(s)(s => probe ! s)
+      case s: String ⇒
+        persist(s)(s ⇒ probe ! s)
     }
 
     def receiveRecover = {
-      case s: SnapshotOffer =>
+      case s: SnapshotOffer ⇒
         probe ! s
-      case s: String =>
+      case s: String ⇒
         probe ! s
     }
   }
@@ -47,26 +46,37 @@ object KafkaIntegrationSpec {
   }*/
 }
 
-class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config)) with ImplicitSender with WordSpecLike with Matchers with KafkaTest {
+class KafkaIntegrationSpec
+    extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config))
+    with ImplicitSender
+    with WordSpecLike
+    with Matchers
+    with KafkaTest {
   import KafkaIntegrationSpec._
 
   val systemConfig = system.settings.config
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
   val journalConfig = new KafkaJournalConfig(systemConfig.getConfig("kafka-journal"))
-  val storeConfig = new KafkaSnapshotStoreConfig(systemConfig.getConfig("kafka-snapshot-store"))
+  val storeConfig   = new KafkaSnapshotStoreConfig(systemConfig.getConfig("kafka-snapshot-store"))
 
   val serialization = SerializationExtension(system)
-  val eventDecoder = new EventDecoder(system)
+  val eventDecoder  = new EventDecoder(system)
 
   val persistence = Persistence(system)
-  val journal = persistence.journalFor(null)
-  val store = persistence.snapshotStoreFor(null)
+  val journal     = persistence.journalFor(null)
+  val store       = persistence.snapshotStoreFor(null)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    writeJournal("pa", 1 to 3 map { i => s"a-${i}" })
-    writeJournal("pb", 1 to 3 map { i => s"b-${i}" })
-    writeJournal("pc", 1 to 3 map { i => s"c-${i}" })
+    writeJournal("pa", 1 to 3 map { i ⇒
+      s"a-${i}"
+    })
+    writeJournal("pb", 1 to 3 map { i ⇒
+      s"b-${i}"
+    })
+    writeJournal("pc", 1 to 3 map { i ⇒
+      s"c-${i}"
+    })
   }
 
   override def afterAll(): Unit = {
@@ -79,29 +89,40 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
     try { body(actor) } finally { system.stop(actor) }
   }*/
 
-  def withPersistentActor(persistenceId: String)(body: ActorRef => Unit) = {
+  def withPersistentActor(persistenceId: String)(body: ActorRef ⇒ Unit) = {
     val actor = system.actorOf(Props(new TestPersistentActor(persistenceId, testActor)))
-    try { body(actor) } finally { system.stop(actor) }
+    try {
+      body(actor)
+    } finally {
+      system.stop(actor)
+    }
   }
 
-  def writeJournal(persistenceId: String, events: Seq[String]): Unit = withPersistentActor(persistenceId) { actor =>
-    events.foreach { event => actor ! event; expectMsg(event) }
+  def writeJournal(persistenceId: String, events: Seq[String]): Unit = withPersistentActor(persistenceId) { actor ⇒
+    events.foreach { event ⇒
+      actor ! event; expectMsg(event)
+    }
   }
 
   def readJournal(journalTopic: String): Seq[PersistentRepr] =
-    readMessages(journalTopic, 0).map(m => serialization.deserialize(m.value(), classOf[PersistentRepr]).get)
+    readMessages(journalTopic, 0).map(m ⇒ serialization.deserialize(m.value(), classOf[PersistentRepr]).get)
 
   def readEvents(partition: Int): Seq[Event] =
-    readMessages("events", partition).map(m => eventDecoder.fromBytes(m.value))
+    readMessages("events", partition).map(m ⇒ eventDecoder.fromBytes(m.value))
 
   def readMessages(topic: String, partition: Int): Seq[ConsumerRecord[String, Array[Byte]]] =
-    new MessageIterator(journalConfig.txnAwareConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0).toVector
+    new MessageIterator(
+      journalConfig.txnAwareConsumerConfig ++ Map(ConsumerConfig.GROUP_ID_CONFIG → "journal-test-reader"),
+      topic,
+      partition,
+      0
+    ).toVector
 
   "A Kafka journal" must {
     "publish all events to the events topic by default" in {
       val eventSeq = for {
-        partition <- 0 until (if(server.isDefined) server.get.configs.head.numPartitions else  1 )
-        event <- readEvents(partition)
+        partition ← 0 until (if (server.isDefined) server.get.configs.head.numPartitions else 1)
+        event     ← readEvents(partition)
       } yield event
 
       val eventMap = eventSeq.groupBy(_.persistenceId)
@@ -129,9 +150,9 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
         val persistenceId = "pa"
 
         store ! SaveSnapshot(SnapshotMetadata(persistenceId, 7), "test")
-        expectMsgPF() { case SaveSnapshotSuccess(md) => md.sequenceNr should be(7L) }
+        expectMsgPF() { case SaveSnapshotSuccess(md) ⇒ md.sequenceNr should be(7L) }
 
-        withPersistentActor(persistenceId) { _ =>
+        withPersistentActor(persistenceId) { _ ⇒
           expectMsg("a-1")
           expectMsg("a-2")
           expectMsg("a-3")
@@ -141,13 +162,13 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
         val persistenceId = "pa"
 
         store ! SaveSnapshot(SnapshotMetadata(persistenceId, 2), "test")
-        expectMsgPF() { case SaveSnapshotSuccess(md) => md.sequenceNr should be(2L) }
+        expectMsgPF() { case SaveSnapshotSuccess(md) ⇒ md.sequenceNr should be(2L) }
 
         store ! SaveSnapshot(SnapshotMetadata(persistenceId, 7), "test")
-        expectMsgPF() { case SaveSnapshotSuccess(md) => md.sequenceNr should be(7L) }
+        expectMsgPF() { case SaveSnapshotSuccess(md) ⇒ md.sequenceNr should be(7L) }
 
-        withPersistentActor(persistenceId) { _ =>
-          expectMsgPF() { case SnapshotOffer(SnapshotMetadata(_, snr, _), _) => snr should be(2) }
+        withPersistentActor(persistenceId) { _ ⇒
+          expectMsgPF() { case SnapshotOffer(SnapshotMetadata(_, snr, _), _) ⇒ snr should be(2) }
           expectMsg("a-3")
         }
       }

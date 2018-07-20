@@ -18,16 +18,17 @@ object KafkaLoadSpec {
       |kafka-journal.event.producer.topic.mapper.class = "akka.persistence.kafka.EmptyEventTopicMapper"
       |kafka-journal.zookeeper.connection.timeout.ms = 10000
       |kafka-journal.zookeeper.session.timeout.ms = 10000
-    """.stripMargin)
+    """.stripMargin
+  )
 
   trait Measure extends { this: Actor ⇒
     val NanoToSecond = 1000.0 * 1000 * 1000
 
     var startTime: Long = 0L
-    var stopTime: Long = 0L
+    var stopTime: Long  = 0L
 
     var startSequenceNr = 0L;
-    var stopSequenceNr = 0L;
+    var stopSequenceNr  = 0L;
 
     def startMeasure(): Unit = {
       startSequenceNr = lastSequenceNr
@@ -47,21 +48,30 @@ object KafkaLoadSpec {
     def receiveRecover: Receive = handle
 
     def receiveCommand: Receive = {
-      case c @ "start" =>
-        deferAsync(c) { _ => startMeasure(); sender ! "started" }
-      case c @ "stop" =>
-        deferAsync(c) { _ => stopMeasure() }
-      case payload: String =>
+      case c @ "start" ⇒
+        deferAsync(c) { _ ⇒
+          startMeasure(); sender ! "started"
+        }
+      case c @ "stop" ⇒
+        deferAsync(c) { _ ⇒
+          stopMeasure()
+        }
+      case payload: String ⇒
         persistAsync(payload)(handle)
     }
 
     def handle: Receive = {
-      case payload: String =>
+      case payload: String ⇒
     }
   }
 }
 
-class KafkaLoadSpec extends TestKit(ActorSystem("test", KafkaLoadSpec.config)) with ImplicitSender with WordSpecLike with Matchers with KafkaTest {
+class KafkaLoadSpec
+    extends TestKit(ActorSystem("test", KafkaLoadSpec.config))
+    with ImplicitSender
+    with WordSpecLike
+    with Matchers
+    with KafkaTest {
   import KafkaLoadSpec._
 
   val systemConfig = system.settings.config
@@ -79,14 +89,18 @@ class KafkaLoadSpec extends TestKit(ActorSystem("test", KafkaLoadSpec.config)) w
       val loadCycles = 1000L // set to 300000L to get reasonable results
 
       val processor1 = system.actorOf(Props(classOf[TestPersistentActor], "test"))
-      1L to warmCycles foreach { i => processor1 ! "a" }
+      1L to warmCycles foreach { i ⇒
+        processor1 ! "a"
+      }
       processor1 ! "start"
       expectMsg("started")
-      1L to loadCycles foreach { i => processor1 ! "a" }
+      1L to loadCycles foreach { i ⇒
+        processor1 ! "a"
+      }
       processor1 ! "stop"
-      expectMsgPF(100.seconds) { case throughput: Double ⇒ println(f"\nthroughput = $throughput%.2f persistent commands per second") }
+      expectMsgPF(100.seconds) {
+        case throughput: Double ⇒ println(f"\nthroughput = $throughput%.2f persistent commands per second")
+      }
     }
   }
 }
-
-

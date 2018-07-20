@@ -47,19 +47,23 @@ class TestServer(config: Config) extends KafkaServerTestHarness {
 import org.scalatest._
 trait KafkaTest extends BeforeAndAfterAll { this: Suite ⇒
 
-  var server:Option[TestServer] = None
+  var server: Option[TestServer] = None
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    if(Configuration.configApp.hasPath("test-server")) {
+    if (Configuration.configApp.hasPath("test-server")) {
       val serverConfig = Configuration.configApp.getConfig("test-server")
       server = Some(new TestServer(serverConfig))
-      server.foreach{ s => s.setUp() }
+      server.foreach { s ⇒
+        s.setUp()
+      }
     }
   }
 
   override def afterAll(): Unit = {
-    server.foreach{ s => s.tearDown() }
+    server.foreach { s ⇒
+      s.tearDown()
+    }
     super.afterAll()
   }
 }

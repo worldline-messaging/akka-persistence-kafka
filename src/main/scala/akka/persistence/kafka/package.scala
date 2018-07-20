@@ -14,8 +14,8 @@ package object kafka {
 
   def configToProperties(config: Config, extra: Map[String, String] = Map.empty): Map[String, String] = {
 
-    config.entrySet.asScala.map { entry =>
-      entry.getKey -> entry.getValue.unwrapped.toString
+    config.entrySet.asScala.map { entry ⇒
+      entry.getKey → entry.getValue.unwrapped.toString
     }.toMap ++ extra
 
   }
