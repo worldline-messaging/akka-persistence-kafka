@@ -1,8 +1,8 @@
 import sbt._
 
 object Version {
-  val akka  = "2.5.13"
-  val kafka = "1.1.0"
+  val akka  = "2.5.14"
+  val kafka = "1.1.1"
 }
 
 object Dependencies {
