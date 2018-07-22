@@ -84,7 +84,13 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
               .map(_.sequenceNr)
               .contains(snapshot.metadata.sequenceNr)
 
-        load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
+        if (config.snapshotDataless) {
+          load(topic, matcher).map(
+            s ⇒ SelectedSnapshot(s.metadata.copy(sequenceNr = s.snapshot.asInstanceOf[Long] - 1), s.snapshot)
+          )
+        } else {
+          load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
+        }
       }
     } yield snapshot
   }
