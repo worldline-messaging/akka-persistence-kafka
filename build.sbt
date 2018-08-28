@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
       List(
         organization := "com.worldline",
         scalaVersion := "2.12.6",
-        version := "0.7.3-SNAPSHOT"
+        version := "0.7.3"
       )
     ),
     name := "akka-persistence-kafka",
