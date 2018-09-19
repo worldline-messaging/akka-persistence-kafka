@@ -7,6 +7,8 @@ class MetadataConsumerConfig(config: Config) {
   val partition: Int =
     config.getInt("partition")
 
+  val pollTimeOut = if (config.hasPath("poll-timeout")) config.getLong("poll-timeout") else 3000L
+
   val snapshotConsumerConfig: Map[String, Object] =
     configToProperties(
       config.getConfig("consumer"),

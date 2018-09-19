@@ -115,7 +115,8 @@ class KafkaIntegrationSpec
       journalConfig.txnAwareConsumerConfig ++ Map(ConsumerConfig.GROUP_ID_CONFIG → "journal-test-reader"),
       topic,
       partition,
-      0
+      0,
+      journalConfig.pollTimeOut
     ).toVector
 
   "A Kafka journal" must {

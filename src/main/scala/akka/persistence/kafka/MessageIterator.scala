@@ -5,7 +5,7 @@ import org.apache.kafka.common.TopicPartition
 
 import scala.collection.JavaConverters._
 
-class MessageIterator(consumerConfig: Map[String, Object], topic: String, partition: Int, offset: Long)
+class MessageIterator(consumerConfig: Map[String, Object], topic: String, partition: Int, offset: Long, timeOut: Long)
     extends Iterator[ConsumerRecord[String, Array[Byte]]] {
 
   val consumer     = new KafkaConsumer[String, Array[Byte]](consumerConfig.asJava)
@@ -17,7 +17,7 @@ class MessageIterator(consumerConfig: Map[String, Object], topic: String, partit
     val tp = new TopicPartition(topic, partition)
     consumer.assign(List(tp).asJava)
     consumer.seek(tp, offset)
-    val it = consumer.poll(1000).iterator().asScala
+    val it = consumer.poll(timeOut).iterator().asScala
     it
   }
 
