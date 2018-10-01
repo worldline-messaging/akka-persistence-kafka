@@ -25,9 +25,9 @@ class ExampleProcessor(val persistenceId: String) extends PersistentActor {
     case "snap" ⇒
       saveSnapshot(state)
     case SaveSnapshotSuccess(md) ⇒
-      println(s"snapshot saved (metadata = ${md})")
+      println(s"snapshot saved (metadata = $md)")
     case SaveSnapshotFailure(md, e) ⇒
-      println(s"snapshot saving failed (metadata = ${md}, error = ${e.getMessage})")
+      println(s"snapshot saving failed (metadata = $md, error = ${e.getMessage})")
   }
 
   def receiveRecover: Receive = {
@@ -35,12 +35,12 @@ class ExampleProcessor(val persistenceId: String) extends PersistentActor {
       update(i)
     case SnapshotOffer(md, snapshot: Int) ⇒
       state = snapshot
-      println(s"state initialized: ${state} (metadata = ${md})")
+      println(s"state initialized: $state (metadata = $md)")
   }
 
   def update(i: Increment): Unit = {
     state += i.value
-    println(s"state updated: ${state} (last sequence nr = ${lastSequenceNr})")
+    println(s"state updated: $state (last sequence nr = $lastSequenceNr)")
   }
 }
 
@@ -79,9 +79,9 @@ object ExampleConsumer extends App {
     valueDecoder = new EventDecoder(system)
   )
 
-  streams("topic-a-2")(0).foreach { mm ⇒
+  streams("topic-a-2").head.foreach { mm ⇒
     val event: Event = mm.message
-    println(s"consumed ${event}")
+    println(s"consumed $event")
   }
 }
 
@@ -99,9 +99,9 @@ object ExampleJournalConsumer extends App {
   val streams =
     consConn.createMessageStreams(Map("a" → 1), keyDecoder = new StringDecoder, valueDecoder = new DefaultDecoder)
 
-  streams("a")(0).foreach { mm ⇒
+  streams("a").head.foreach { mm ⇒
     val persistent: PersistentRepr = extension.deserialize(mm.message, classOf[PersistentRepr]).get
-    println(s"consumed ${persistent}")
+    println(s"consumed $persistent")
   }
 }
 

@@ -66,13 +66,13 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
     SnapshotMetadata(md.getPersistenceId, md.getSequenceNr, md.getTimestamp)
   }
 
-  private def writeInt(outputStream: OutputStream, i: Int) =
+  private def writeInt(outputStream: OutputStream, i: Int): Unit =
     0 to 24 by 8 foreach { shift ⇒
       outputStream.write(i >> shift)
     }
 
   private def readInt(inputStream: InputStream) =
     (0 to 24 by 8).foldLeft(0) { (id, shift) ⇒
-      (id | (inputStream.read() << shift))
+      id | (inputStream.read() << shift)
     }
 }

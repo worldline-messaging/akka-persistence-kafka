@@ -5,11 +5,11 @@ import akka.actor._
 import akka.persistence.PersistentActor
 import akka.persistence.kafka.server._
 import akka.testkit._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest._
 
 object KafkaLoadSpec {
-  val config = ConfigFactory.parseString(
+  val config: Config = ConfigFactory.parseString(
     """
       |akka.persistence.journal.plugin = "kafka-journal"
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
@@ -27,8 +27,8 @@ object KafkaLoadSpec {
     var startTime: Long = 0L
     var stopTime: Long  = 0L
 
-    var startSequenceNr = 0L;
-    var stopSequenceNr  = 0L;
+    var startSequenceNr = 0L
+    var stopSequenceNr  = 0L
 
     def startMeasure(): Unit = {
       startSequenceNr = lastSequenceNr

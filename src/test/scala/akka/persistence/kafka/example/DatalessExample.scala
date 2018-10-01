@@ -2,10 +2,10 @@ package akka.persistence.kafka.example.dataless
 
 import akka.actor.{ActorSystem, Props}
 import akka.persistence.PersistentActor
-
 import com.typesafe.config.ConfigFactory
 import akka.persistence._
 
+import scala.collection.mutable
 import scala.collection.mutable.Queue
 
 sealed trait PersistedObject            extends Serializable
@@ -18,12 +18,12 @@ case class SendId(id: Int, offset: Option[Long] = None) extends Message
 case class Ack(id: Int, offset: Option[Long] = None)    extends Message
 
 class MyPersistentActor extends PersistentActor {
-  var inflight = Queue[SendId]()
+  var inflight: mutable.Queue[SendId] = Queue[SendId]()
 
   override val persistenceId: String = "persistenceId1"
 
   override def receiveRecover: Receive = {
-    case SnapshotOffer(metadata, snapshot: Long) ⇒ println(s"SnapshotOffer value $snapshot")
+    case SnapshotOffer(_, snapshot: Long) ⇒ println(s"SnapshotOffer value $snapshot")
     case PersistId(id) ⇒
       println(s"receiveRecover  : Recovering an event = PersistId($id) with sequence $lastSequenceNr")
       inflight.enqueue(SendId(id, Some(lastSequenceNr)))
@@ -41,7 +41,7 @@ class MyPersistentActor extends PersistentActor {
     case SendId(id, _) ⇒
       println(s"receiveCommand  : Received id SendId($id)")
       persist(PersistId(id)) { persistId ⇒
-        println(s"persist callback: persistId = persistID(${persistId}) persisted with lastSequenceNr $lastSequenceNr")
+        println(s"persist callback: persistId = persistID($persistId) persisted with lastSequenceNr $lastSequenceNr")
         inflight.enqueue(SendId(persistId.id, Some(lastSequenceNr)))
         println(s"persist SendId callback: inflight = $inflight")
       }
@@ -50,7 +50,7 @@ class MyPersistentActor extends PersistentActor {
       println(s"receiveCommand  : Received ack Ack($id)")
       persist(PersistAck(id)) { persistAck ⇒
         println(
-          s"persist callback: persistAck = persistAck(${persistAck}) persisted with lastSequenceNr $lastSequenceNr"
+          s"persist callback: persistAck = persistAck($persistAck) persisted with lastSequenceNr $lastSequenceNr"
         )
         inflight = inflight.filter(e ⇒ e.id != persistAck.id)
         println(s"persist Ack callback: inflight = $inflight")
@@ -75,10 +75,10 @@ class MyPersistentActor extends PersistentActor {
       throw new Exception("exploded!")
 
     case SaveSnapshotSuccess(metadata) ⇒
-      println(s"SaveSnapshotSuccess for ${metadata}")
+      println(s"SaveSnapshotSuccess for $metadata")
 
     case SaveSnapshotFailure(metadata, cause) ⇒
-      println(s"Failure at saving snapshot ${metadata} caused by ${cause}")
+      println(s"Failure at saving snapshot $metadata caused by $cause")
 
     case other @ o ⇒ println(s"Unexpected receiveCommand $o")
   }

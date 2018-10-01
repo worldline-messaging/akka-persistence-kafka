@@ -1,11 +1,11 @@
 package akka.persistence.kafka.snapshot
 
-import com.typesafe.config.{Config, ConfigFactory}
-import akka.persistence._
 import akka.persistence.SnapshotProtocol._
-import akka.persistence.snapshot.SnapshotStoreSpec
+import akka.persistence._
 import akka.persistence.kafka.server._
+import akka.persistence.snapshot.SnapshotStoreSpec
 import akka.testkit.TestProbe
+import com.typesafe.config.{Config, ConfigFactory}
 
 class KafkaSnapshotStoreSpec extends SnapshotStoreSpec(config = ConfigFactory.parseString(s"""
       |akka.persistence.journal.plugin = "kafka-journal"
@@ -15,8 +15,8 @@ class KafkaSnapshotStoreSpec extends SnapshotStoreSpec(config = ConfigFactory.pa
       |kafka-snapshot-store.ignore-orphan = false
       |kafka-snapshot-store.producer.max.request.size = 11000000
     """.stripMargin)) with KafkaTest {
-  lazy val maxMessageSize = 1000 * 1000 * 11
-  val systemConfig        = system.settings.config
+  lazy val maxMessageSize: Int = 1000 * 1000 * 11
+  val systemConfig: Config     = system.settings.config
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
 
   "A Kafka snapshot store" must {
