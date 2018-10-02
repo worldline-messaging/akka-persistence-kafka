@@ -7,7 +7,8 @@ class MetadataConsumerConfig(config: Config) {
   val partition: Int =
     config.getInt("partition")
 
-  val pollTimeOut: Long = if (config.hasPath("poll-timeout")) config.getLong("poll-timeout") else 3000L
+  val pollTimeOut: Long =
+    if (config.hasPath("consumer.poll-timeout")) config.getLong("consumer.poll-timeout") else 3000L
 
   val snapshotConsumerConfig: Map[String, Object] =
     configToProperties(
@@ -17,7 +18,7 @@ class MetadataConsumerConfig(config: Config) {
         ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringDeserializer",
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
       )
-    )
+    ) - "poll-timeout"
 
   lazy val txnAwareConsumerConfig: Map[String, Object] =
     snapshotConsumerConfig ++ Map(ConsumerConfig.ISOLATION_LEVEL_CONFIG → "read_committed")

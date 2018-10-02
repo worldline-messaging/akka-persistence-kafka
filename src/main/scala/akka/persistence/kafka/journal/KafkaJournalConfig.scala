@@ -33,5 +33,5 @@ class KafkaJournalConfig(config: Config) extends MetadataConsumerConfig(config) 
         ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringSerializer",
         ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArraySerializer"
       )
-    )
+    ) - "topic.mapper.class"
 }
