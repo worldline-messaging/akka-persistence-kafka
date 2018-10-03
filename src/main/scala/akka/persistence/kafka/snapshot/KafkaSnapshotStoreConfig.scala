@@ -11,9 +11,6 @@ class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(co
   val ignoreOrphan: Boolean =
     config.getBoolean("ignore-orphan")
 
-  val snapshotDataless: Boolean =
-    config.getBoolean("snapshot-dataless")
-
   def producerConfig(): Map[String, Object] =
     configToProperties(
       config.getConfig("producer"),

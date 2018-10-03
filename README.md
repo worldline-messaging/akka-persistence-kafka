@@ -215,12 +215,6 @@ For example, if an actor's `persistenceId` is `example`, its snapshots are publi
 
 - Deletions are not persistent (which may not be relevant for applications that configure Kafka with reasonably small retention times).
 
-### Special feature
-
-To enable dataless mode using the oldest Kafka offset given by the application to the persistence plugin
-    
-    kafka-snapshot-store.snapshot-dataless = true
-
 Kafka
 -----
 

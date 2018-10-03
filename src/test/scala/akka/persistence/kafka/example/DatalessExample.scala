@@ -20,10 +20,24 @@ case class Ack(id: Int, offset: Option[Long] = None)    extends Message
 class MyPersistentActor extends PersistentActor {
   var inflight: mutable.Queue[SendId] = Queue[SendId]()
 
+  override def snapshotSequenceNr =
+    inflight
+      .reduceLeft { (a, b) ⇒
+        val offsetA = a.offset.get
+        val offsetB = b.offset.get
+        if (offsetA < offsetB) {
+          a
+        } else {
+          b
+        }
+      }
+      .offset
+      .get - 1
+
   override val persistenceId: String = "persistenceId1"
 
   override def receiveRecover: Receive = {
-    case SnapshotOffer(_, snapshot: Long) ⇒ println(s"SnapshotOffer value $snapshot")
+    case SnapshotOffer(_, _) ⇒ println(s"SnapshotOffer")
     case PersistId(id) ⇒
       println(s"receiveRecover  : Recovering an event = PersistId($id) with sequence $lastSequenceNr")
       inflight.enqueue(SendId(id, Some(lastSequenceNr)))
@@ -57,20 +71,8 @@ class MyPersistentActor extends PersistentActor {
       }
 
     case "snapshot" ⇒
-      val minOffset: Long = inflight
-        .reduceLeft { (a, b) ⇒
-          val offsetA = a.offset.get
-          val offsetB = b.offset.get
-          if (offsetA < offsetB) {
-            a
-          } else {
-            b
-          }
-        }
-        .offset
-        .get
-      println(s"Save snapshot with min offset $minOffset for inflight $inflight")
-      saveSnapshot(minOffset)
+      println("snapshot")
+      saveSnapshot(())
     case "kaboom" ⇒
       throw new Exception("exploded!")
 

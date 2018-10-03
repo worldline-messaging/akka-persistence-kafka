@@ -48,12 +48,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
-    if (config.snapshotDataless) {
-      //We fool the API to start the recovery at our custom offset stored in the snapshot data as a long
-      metadata.copy(sequenceNr = snapshot.asInstanceOf[Long])
-    }
     val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, snapshot)).get
-
     val snapshotMessage =
       new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
     sendFuture(snapshotProducer, snapshotMessage)
@@ -83,13 +78,8 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
               .map(_.sequenceNr)
               .contains(snapshot.metadata.sequenceNr)
 
-        if (config.snapshotDataless) {
-          load(topic, matcher).map(
-            s ⇒ SelectedSnapshot(s.metadata.copy(sequenceNr = s.snapshot.asInstanceOf[Long] - 1), s.snapshot)
-          )
-        } else {
-          load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
-        }
+        load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
+
       }
     } yield snapshot
   }
