@@ -42,12 +42,10 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   private def localReceive: Receive = {
     case ReadHighestSequenceNr(_, persistenceId, _) ⇒
-      try {
-        val highest = readHighestSequenceNr(persistenceId)
-        sender ! ReadHighestSequenceNrSuccess(highest)
-      } catch {
-        case e: Exception ⇒ sender ! ReadHighestSequenceNrFailure(e)
-      }
+      import akka.pattern.pipe
+      Future(ReadHighestSequenceNrSuccess(readHighestSequenceNr(persistenceId)))
+        .recover { case t ⇒ ReadHighestSequenceNrFailure(t) }
+        .pipeTo(sender())
   }
 
   // --------------------------------------------------------------------------------------
