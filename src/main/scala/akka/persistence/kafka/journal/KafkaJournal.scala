@@ -46,6 +46,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
       Future(ReadHighestSequenceNrSuccess(readHighestSequenceNr(persistenceId)))
         .recover { case t ⇒ ReadHighestSequenceNrFailure(t) }
         .pipeTo(sender())
+      ()
   }
 
   // --------------------------------------------------------------------------------------
