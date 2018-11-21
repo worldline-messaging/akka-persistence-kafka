@@ -1,7 +1,7 @@
 import sbt._
 
 object Version {
-  val akka  = "2.5.17"
+  val akka  = "2.5.18"
   val kafka = "1.1.1"
 }
 

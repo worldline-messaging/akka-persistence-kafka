@@ -1,30 +1,28 @@
 package akka.persistence.kafka.snapshot
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
-
 import akka.actor._
 import akka.pattern.ask
 import akka.persistence._
-import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.kafka._
-import akka.serialization.SerializationExtension
-import akka.util.Timeout
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import akka.persistence.snapshot.SnapshotStore
+import akka.serialization.{Serialization, SerializationExtension}
+import akka.util.Timeout
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
   import context.dispatcher
 
-  val extension = Persistence(context.system)
+  val extension: Persistence = Persistence(context.system)
 
   type RangeDeletions  = Map[String, SnapshotSelectionCriteria]
   type SingleDeletions = Map[String, List[SnapshotMetadata]]
 
-  val serialization = SerializationExtension(context.system)
-  val config        = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
+  val serialization: Serialization = SerializationExtension(context.system)
+  val config                       = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
 
   val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)
 
@@ -103,7 +101,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     */
   private def highestJournalSequenceNr(persistenceId: String): Future[Long] = {
     val journal                   = extension.journalFor(null)
-    implicit val timeout: Timeout = Timeout(5 seconds)
+    implicit val timeout: Timeout = config.readHighestSequenceNrTimeout
     val res                       = journal ? ReadHighestSequenceNr(0L, persistenceId, self)
     res.flatMap {
       case ReadHighestSequenceNrSuccess(snr) ⇒ Future.successful(snr + 1)

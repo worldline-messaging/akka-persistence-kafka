@@ -4,7 +4,13 @@ import akka.persistence.kafka._
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer.ProducerConfig
 
+import scala.concurrent.duration.{Duration, FiniteDuration}
+
 class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(config) {
+
+  val readHighestSequenceNrTimeout: FiniteDuration =
+    Duration.fromNanos(config.getDuration("read-highest-sequence-nr-timeout").toNanos)
+
   val prefix: String =
     config.getString("prefix")
 
