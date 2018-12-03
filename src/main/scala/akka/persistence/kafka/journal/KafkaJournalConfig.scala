@@ -14,6 +14,10 @@ class KafkaJournalConfig(config: Config) extends MetadataConsumerConfig(config) 
   val writeConcurrency: Int =
     config.getInt("write-concurrency")
 
+  val failedRetries: Int = config.getInt("failed-retry")
+
+  val waitFailedRetry: Long = config.getLong("wait-fail-retry-ms")
+
   val eventTopicMapper: EventTopicMapper =
     CoreUtils.createObject[EventTopicMapper](config.getString("event.producer.topic.mapper.class"))
 

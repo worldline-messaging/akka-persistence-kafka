@@ -170,60 +170,64 @@ private class KafkaJournalWriter(
     (recordMsgs, recordEvents)
   }
 
-  private def writeBatchMessages(batches: Seq[(AtomicWrite, Promise[Unit])]): Unit = {
-    var i     = 0
-    var begin = false
+  private def writeBatchMessages(
+      batches: Seq[(AtomicWrite, Promise[Unit])],
+      retry: Int = config.failedRetries
+  ): Unit = {
 
-    batches.foreach {
-      case (batch, p) ⇒
-        try {
-          if (!begin) {
-            msgProducer.beginTransaction()
-          }
+    Try {
+      msgProducer.beginTransaction()
+      evtProducer.beginTransaction()
+      var futureResults: Seq[Future[Unit]] = Nil
+      batches.foreach {
+        case (batch, _) ⇒
           val (recordMsgs, recordEvents) = buildRecords(batch.payload)
-          recordMsgs.foreach { recordMsg ⇒
+          futureResults ++= recordMsgs.map { recordMsg ⇒
             sendFuture(msgProducer, recordMsg)
-          }
-          if (i == batches.size - 1) {
-            msgProducer.commitTransaction()
-          }
-          if (recordEvents.nonEmpty) {
-            if (!begin) {
-              evtProducer.beginTransaction()
-            }
-            recordEvents.foreach { recordMsg ⇒
+          } ++
+            recordEvents.map { recordMsg ⇒
               sendFuture(evtProducer, recordMsg)
             }
-            if (i == batches.size - 1) {
-              evtProducer.commitTransaction()
-            }
-          }
-          p.success(())
-          i = i + 1
-          begin = true
-        } catch {
-          case pfe: ProducerFencedException ⇒
-            log.error(pfe, "An error occurs")
+      }
+      msgProducer.commitTransaction()
+      evtProducer.commitTransaction()
+      batches.foreach(x ⇒ x._2.success(()))
+
+    } recover {
+      case pfe: ProducerFencedException ⇒
+        log.error(pfe, "An error occurs")
+        msgProducer.close()
+        evtProducer.close()
+        msgProducer = createMessageProducer(journalPath, index)
+        evtProducer = createEventProducer(journalPath, index)
+        batches.foreach(x ⇒ x._2.failure(pfe))
+      case ke: KafkaException ⇒
+        log.error(ke, "An error occurs")
+        Try {
+          msgProducer.abortTransaction()
+          evtProducer.abortTransaction()
+        }
+        if (retry > 0) {
+          log.warning("thread falling asleep for {} ms before retrying", config.waitFailedRetry)
+          // We sleep this thread in order to not process any other akka message (and not lose message ordering)
+          Try {
             msgProducer.close()
             evtProducer.close()
             msgProducer = createMessageProducer(journalPath, index)
             evtProducer = createEventProducer(journalPath, index)
-            begin = false
-            p.failure(pfe)
-          case ke: KafkaException ⇒
-            log.error(ke, "An error occurs")
-            msgProducer.abortTransaction()
-            evtProducer.abortTransaction()
-            begin = false
-            p.failure(ke)
-          case e: Throwable ⇒
-            log.error(e, "An error occurs")
-            msgProducer.abortTransaction()
-            evtProducer.abortTransaction()
-            begin = false
-            p.failure(e)
+          }
+          Thread.sleep(config.waitFailedRetry)
+          writeBatchMessages(batches, retry - 1)
+        } else {
+          batches.foreach(x ⇒ x._2.failure(ke))
         }
+      case e: Throwable ⇒
+        log.error(e, "An error occurs")
+        msgProducer.abortTransaction()
+        evtProducer.abortTransaction()
+        batches.foreach(x ⇒ x._2.failure(e))
     }
+    ()
   }
 
   override def postStop(): Unit = {
