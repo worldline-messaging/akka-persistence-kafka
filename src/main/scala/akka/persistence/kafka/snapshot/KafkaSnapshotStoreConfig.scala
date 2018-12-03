@@ -11,6 +11,8 @@ class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(co
   val readHighestSequenceNrTimeout: FiniteDuration =
     Duration.fromNanos(config.getDuration("read-highest-sequence-nr-timeout").toNanos)
 
+  val failedSnapshotRetries: Int = config.getInt("failed-retry")
+
   val prefix: String =
     config.getString("prefix")
 
