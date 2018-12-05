@@ -16,6 +16,7 @@ import org.apache.kafka.common.errors.ProducerFencedException
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
+import scala.concurrent.duration._
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite, Promise[Unit])])
 private case object CloseWriter
@@ -143,13 +144,18 @@ private class KafkaJournalWriter(
     config: KafkaJournalConfig,
     serialization: Serialization
 ) extends Actor
-    with ActorLogging {
+    with ActorLogging
+    with UnboundedStash {
+
+  import context.dispatcher
+
   var msgProducer: KafkaProducer[String, Array[Byte]] = createMessageProducer(journalPath, index)
   var evtProducer: KafkaProducer[String, Array[Byte]] = createEventProducer(journalPath, index)
 
   def receive: PartialFunction[Any, Unit] = {
     case messages: SeqOfAtomicWritesPromises ⇒
       writeBatchMessages(messages.messages)
+      ()
     case CloseWriter ⇒
       msgProducer.close()
       evtProducer.close()
@@ -173,7 +179,9 @@ private class KafkaJournalWriter(
   private def writeBatchMessages(
       batches: Seq[(AtomicWrite, Promise[Unit])],
       retry: Int = config.failedRetries
-  ): Unit = {
+  ): Boolean = {
+
+    var canUnstash = true
 
     Try {
       msgProducer.beginTransaction()
@@ -208,16 +216,17 @@ private class KafkaJournalWriter(
           evtProducer.abortTransaction()
         }
         if (retry > 0) {
-          log.warning("thread falling asleep for {} ms before retrying", config.waitFailedRetry)
-          // We sleep this thread in order to not process any other akka message (and not lose message ordering)
+          log.warning("waiting for {} ms before retrying", config.waitFailedRetry)
           Try {
             msgProducer.close()
             evtProducer.close()
             msgProducer = createMessageProducer(journalPath, index)
             evtProducer = createEventProducer(journalPath, index)
           }
-          Thread.sleep(config.waitFailedRetry)
-          writeBatchMessages(batches, retry - 1)
+          // We don't process anything anymore until we wait the expected Retry trigger
+          context.become(waitForRetry, discardOld = false)
+          context.system.scheduler.scheduleOnce(config.waitFailedRetry millis, self, Retry(batches, retry - 1))
+          canUnstash = false
         } else {
           batches.foreach(x ⇒ x._2.failure(ke))
         }
@@ -227,13 +236,23 @@ private class KafkaJournalWriter(
         evtProducer.abortTransaction()
         batches.foreach(x ⇒ x._2.failure(e))
     }
-    ()
+    canUnstash
   }
 
   override def postStop(): Unit = {
     msgProducer.close()
     evtProducer.close()
     super.postStop()
+  }
+
+  def waitForRetry: Receive = {
+    case Retry(batches, retry) ⇒
+      context.unbecome()
+      if (writeBatchMessages(batches, retry))
+        unstashAll()
+
+    // We do nothing until we get the Retry trigger
+    case _ ⇒ stash()
   }
 
   private def createMessageProducer(journalPath: String, index: Int) = {
@@ -254,3 +273,6 @@ private class KafkaJournalWriter(
     p
   }
 }
+
+// trigger to retry
+case class Retry(batches: Seq[(AtomicWrite, Promise[Unit])], retry: Int)
