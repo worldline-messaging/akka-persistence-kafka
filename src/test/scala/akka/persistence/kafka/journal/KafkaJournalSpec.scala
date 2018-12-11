@@ -24,7 +24,7 @@ class KafkaJournalSpec
   val systemConfig: Config = system.settings.config
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
 
-  override def supportsAtomicPersistAllOfSeveralEvents: Boolean = true
+  override def supportsAtomicPersistAllOfSeveralEvents: Boolean = false
 
   override protected def supportsRejectingNonSerializableObjects: CapabilityFlag = CapabilityFlag.on()
 
