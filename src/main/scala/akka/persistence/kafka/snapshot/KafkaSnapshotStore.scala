@@ -1,29 +1,30 @@
 package akka.persistence.kafka.snapshot
 
+import scala.concurrent.Future
+import scala.concurrent.duration._
+
 import akka.actor._
 import akka.pattern.ask
 import akka.persistence._
-import akka.persistence.kafka._
-import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import akka.persistence.snapshot.SnapshotStore
-import akka.serialization.{Serialization, SerializationExtension}
+import akka.persistence.kafka._
+import akka.serialization.SerializationExtension
 import akka.util.Timeout
+import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.Future
-import scala.util.control.NonFatal
 
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
   import context.dispatcher
 
-  val extension: Persistence = Persistence(context.system)
+  val extension = Persistence(context.system)
 
   type RangeDeletions  = Map[String, SnapshotSelectionCriteria]
   type SingleDeletions = Map[String, List[SnapshotMetadata]]
 
-  val serialization: Serialization = SerializationExtension(context.system)
-  val config                       = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
+  val serialization = SerializationExtension(context.system)
+  val config        = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
 
   val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)
 
@@ -50,6 +51,8 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, snapshot)).get
     val snapshotMessage =
       new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
+
+    // TODO: take a producer from a pool
     sendFuture(snapshotProducer, snapshotMessage)
   }
 
@@ -78,7 +81,6 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
               .contains(snapshot.metadata.sequenceNr)
 
         load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
-
       }
     } yield snapshot
   }
@@ -102,7 +104,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     */
   private def highestJournalSequenceNr(persistenceId: String): Future[Long] = {
     val journal                   = extension.journalFor(null)
-    implicit val timeout: Timeout = config.readHighestSequenceNrTimeout
+    implicit val timeout: Timeout = Timeout(50 seconds)
     val res                       = journal ? ReadHighestSequenceNr(0L, persistenceId, self)
     res.flatMap {
       case ReadHighestSequenceNrSuccess(snr) ⇒ Future.successful(snr + 1)
@@ -111,28 +113,16 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   private def snapshot(topic: String, offset: Long): KafkaSnapshot = {
-    var retries                       = config.failedSnapshotRetries
-    var result: Option[KafkaSnapshot] = None
-    while (retries > 0 && result.isEmpty) {
-      val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, config.pollTimeOut)
-      if (!iter.hasNext && offset > 0)
-        log.warning(
-          s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)"
-        )
-      try {
-        result = Some(serialization.deserialize(iter.next().value(), classOf[KafkaSnapshot]).get)
-      } catch {
-        case NonFatal(e) ⇒
-          retries -= 1
-          if (retries == 0) {
-            log.error(e, "could not read snapshot")
-            throw e
-          }
-      } finally {
-        iter.close()
-      }
+    val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, config.pollTimeOut)
+    if (!iter.hasNext && offset > 0)
+      log.warning(
+        s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)"
+      )
+    try {
+      serialization.deserialize(iter.next().value(), classOf[KafkaSnapshot]).get
+    } finally {
+      iter.close()
     }
-    result.get
   }
 
   private def snapshotTopic(persistenceId: String): String =

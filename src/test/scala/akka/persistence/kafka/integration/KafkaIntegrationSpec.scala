@@ -1,34 +1,54 @@
 package akka.persistence.kafka.integration
 
+import java.util.UUID
+
 import scala.collection.immutable.Seq
 import akka.actor._
+import akka.persistence.JournalProtocol.{
+  WriteMessageSuccess,
+  WriteMessages,
+  WriteMessagesFailed,
+  WriteMessagesSuccessful
+}
 import akka.persistence._
 import akka.persistence.SnapshotProtocol._
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalConfig
 import akka.persistence.kafka.server._
 import akka.persistence.kafka.snapshot.KafkaSnapshotStoreConfig
-import akka.serialization.SerializationExtension
+import akka.serialization.{SerializationExtension, Serializer}
 import akka.testkit._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest._
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 
 object KafkaIntegrationSpec {
-  val config = ConfigFactory.parseString("""
+  val config: Config =
+    ConfigFactory.parseString("""
       |akka.persistence.journal.plugin = "kafka-journal"
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
-      |akka.test.single-expect-default = 10s
+      |akka.test.single-expect-default = 20s
       |kafka-journal.event.producer.request.required.acks = 1
+      |akka {
+      |  actor {
+      |    serializers {
+      |      bad-event = "akka.persistence.kafka.integration.BadEventSerializer"
+      |    }
+      |
+      |    serialization-bindings {
+      |      "akka.persistence.kafka.integration.BadEvent" = bad-event
+      |    }
+      |  }
+      |}
     """.stripMargin)
 
   class TestPersistentActor(val persistenceId: String, probe: ActorRef) extends PersistentActor {
-    def receiveCommand = {
+    def receiveCommand: PartialFunction[Any, Unit] = {
       case s: String ⇒
         persist(s)(s ⇒ probe ! s)
     }
 
-    def receiveRecover = {
+    def receiveRecover: PartialFunction[Any, Unit] = {
       case s: SnapshotOffer ⇒
         probe ! s
       case s: String ⇒
@@ -46,6 +66,20 @@ object KafkaIntegrationSpec {
   }*/
 }
 
+class BadEvent {}
+
+class BadEventSerializer extends Serializer {
+  override def identifier: Int = 35456
+
+  override def toBinary(o: AnyRef): Array[Byte] =
+    throw new IllegalStateException("Unable to serialize. It's a bad event")
+
+  override def includeManifest: Boolean = false
+
+  override def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef =
+    throw new IllegalStateException("Unable to deserialize. It's a bad event")
+}
+
 class KafkaIntegrationSpec
     extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config))
     with ImplicitSender
@@ -54,7 +88,7 @@ class KafkaIntegrationSpec
     with KafkaTest {
   import KafkaIntegrationSpec._
 
-  val systemConfig = system.settings.config
+  val systemConfig: Config = system.settings.config
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
   val journalConfig = new KafkaJournalConfig(systemConfig.getConfig("kafka-journal"))
   val storeConfig   = new KafkaSnapshotStoreConfig(systemConfig.getConfig("kafka-snapshot-store"))
@@ -62,20 +96,20 @@ class KafkaIntegrationSpec
   val serialization = SerializationExtension(system)
   val eventDecoder  = new EventDecoder(system)
 
-  val persistence = Persistence(system)
-  val journal     = persistence.journalFor(null)
-  val store       = persistence.snapshotStoreFor(null)
+  val persistence       = Persistence(system)
+  val journal: ActorRef = persistence.journalFor(null)
+  val store: ActorRef   = persistence.snapshotStoreFor(null)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
     writeJournal("pa", 1 to 3 map { i ⇒
-      s"a-${i}"
+      s"a-$i"
     })
     writeJournal("pb", 1 to 3 map { i ⇒
-      s"b-${i}"
+      s"b-$i"
     })
     writeJournal("pc", 1 to 3 map { i ⇒
-      s"c-${i}"
+      s"c-$i"
     })
   }
 
@@ -89,7 +123,7 @@ class KafkaIntegrationSpec
     try { body(actor) } finally { system.stop(actor) }
   }*/
 
-  def withPersistentActor(persistenceId: String)(body: ActorRef ⇒ Unit) = {
+  def withPersistentActor(persistenceId: String)(body: ActorRef ⇒ Unit): Unit = {
     val actor = system.actorOf(Props(new TestPersistentActor(persistenceId, testActor)))
     try {
       body(actor)
@@ -141,6 +175,30 @@ class KafkaIntegrationSpec
       val persistenceId = "x/y/z" // not a valid topic name
       writeJournal(persistenceId, Seq("a", "b", "c"))
       readJournal(journalTopic(persistenceId)).map(_.payload) should be(Seq("a", "b", "c"))
+    }
+    "consider a batch as failed on fatal exception" in {
+      println("MAAAAAAAAAAAAAAAAAX START")
+      val writerUuid = UUID.randomUUID.toString
+      val msgs = (1 to 10).map { i ⇒
+        val p = if (i == 5) new BadEvent else s"b-$i"
+        PersistentRepr(
+          payload = p,
+          sequenceNr = i,
+          persistenceId = "npe",
+          sender = Actor.noSender,
+          writerUuid = writerUuid
+        )
+      }
+
+      val probe = TestProbe()
+      journal ! WriteMessages(Seq(AtomicWrite(msgs)), probe.ref, 1)
+
+      probe.expectMsgPF() {
+        case wmf: WriteMessagesFailed ⇒
+          wmf.cause.isInstanceOf[IllegalStateException] shouldBe true
+          wmf.cause.getMessage shouldBe "Unable to serialize. It's a bad event"
+      }
+      println("MAAAAAAAAAAAAAAAAAX END")
     }
   }
 
