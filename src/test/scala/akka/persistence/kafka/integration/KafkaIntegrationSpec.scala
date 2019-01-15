@@ -177,7 +177,6 @@ class KafkaIntegrationSpec
       readJournal(journalTopic(persistenceId)).map(_.payload) should be(Seq("a", "b", "c"))
     }
     "consider a batch as failed on fatal exception" in {
-      println("MAAAAAAAAAAAAAAAAAX START")
       val writerUuid = UUID.randomUUID.toString
       val msgs = (1 to 10).map { i ⇒
         val p = if (i == 5) new BadEvent else s"b-$i"
@@ -198,7 +197,6 @@ class KafkaIntegrationSpec
           wmf.cause.isInstanceOf[IllegalStateException] shouldBe true
           wmf.cause.getMessage shouldBe "Unable to serialize. It's a bad event"
       }
-      println("MAAAAAAAAAAAAAAAAAX END")
     }
   }
 
