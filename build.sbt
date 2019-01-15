@@ -8,8 +8,8 @@ lazy val root = (project in file("."))
     inThisBuild(
       List(
         organization := "com.worldline",
-        scalaVersion := "2.12.7",
-        version := "0.7.9-SNAPSHOT"
+        scalaVersion := "2.12.8",
+        version := "0.8.0"
       )
     ),
     name := "akka-persistence-kafka",

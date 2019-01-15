@@ -1,3 +1,4 @@
+/*
 package akka.persistence.kafka.example
 
 import java.util.Properties
@@ -109,3 +110,4 @@ object ExampleJournalConsumer extends App {
 object ExampleServer extends App {
   new TestServer(ConfigFactory.load("example"))
 }
+ */

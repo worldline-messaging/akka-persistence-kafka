@@ -72,13 +72,17 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
       case (pid, aws) ⇒ writerFor(pid) ! SeqOfAtomicWritesPromises(aws)
     }
 
-    val f = Future.sequence(msgsWithPromises.map { case (_, p) ⇒ p.future.map(Success(_)).recover { case e ⇒ Failure(e) } })
-    f.flatMap { results =>
-      val fatals = results.filter{_.isFailure}.filter {_.failed.get match {
-        case fwe:FatalWriterException => true
-        case _ => false
-      }}
-      if(fatals.nonEmpty) {
+    val f = Future.sequence(msgsWithPromises.map {
+      case (_, p) ⇒ p.future.map(Success(_)).recover { case e ⇒ Failure(e) }
+    })
+    f.flatMap { results ⇒
+      val fatals = results.filter { _.isFailure }.filter {
+        _.failed.get match {
+          case fwe: FatalWriterException ⇒ true
+          case _                         ⇒ false
+        }
+      }
+      if (fatals.nonEmpty) {
         Future.failed(fatals.head.failed.get.getCause)
       } else {
         f
@@ -149,7 +153,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   }
 }
 
-private class FatalWriterException(exception:Throwable) extends Throwable(exception)
+private class FatalWriterException(exception: Throwable) extends Throwable(exception)
 
 private class KafkaJournalWriter(
     journalPath: String,
@@ -211,7 +215,7 @@ private class KafkaJournalWriter(
     var doCommit                                 = tryBeginConnection
     var results: Seq[(Try[Unit], Promise[Unit])] = Nil
 
-    var abortException:Option[Throwable] = None
+    var abortException: Option[Throwable] = None
 
     if (doCommit) {
       results = bs.map {
@@ -235,10 +239,10 @@ private class KafkaJournalWriter(
               }
               (Success(()), p)
             } else {
-              abortException.fold[(Try[Unit],Promise[Unit])] {
-                (Success(()),p)
-              } { exc =>
-                (Failure(exc),p)
+              abortException.fold[(Try[Unit], Promise[Unit])] {
+                (Success(()), p)
+              } { exc ⇒
+                (Failure(exc), p)
               }
             }
           } catch {
@@ -250,16 +254,16 @@ private class KafkaJournalWriter(
               msgProducer = createMessageProducer(journalPath, index)
               evtProducer = createEventProducer(journalPath, index)
               doCommit = false
-              if(abortException.isEmpty) abortException = Some(pfe)
-              (Failure(new FatalWriterException(pfe)),p)
+              if (abortException.isEmpty) abortException = Some(pfe)
+              (Failure(new FatalWriterException(pfe)), p)
             case nse: NotSerializableException ⇒
               log.error(nse, "An error occurs")
               (Failure(nse), p)
             case e: Throwable ⇒
               log.error(e, "An error occurs")
               doCommit = false
-              if(abortException.isEmpty) abortException = Some(e)
-              (Failure(new FatalWriterException(e)),p)
+              if (abortException.isEmpty) abortException = Some(e)
+              (Failure(new FatalWriterException(e)), p)
           }
       }
     }
