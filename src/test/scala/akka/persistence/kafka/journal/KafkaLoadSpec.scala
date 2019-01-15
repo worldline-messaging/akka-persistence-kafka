@@ -13,7 +13,7 @@ object KafkaLoadSpec {
     """
       |akka.persistence.journal.plugin = "kafka-journal"
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
-      |akka.test.single-expect-default = 10s
+      |akka.test.single-expect-default = 20s
       |kafka-journal.event.producer.request.required.acks = 1
       |kafka-journal.event.producer.topic.mapper.class = "akka.persistence.kafka.EmptyEventTopicMapper"
       |kafka-journal.zookeeper.connection.timeout.ms = 10000
@@ -22,7 +22,7 @@ object KafkaLoadSpec {
   )
 
   trait Measure extends { this: Actor ⇒
-    val NanoToSecond = 1000.0 * 1000 * 1000
+    val NanoToSecond: Double = 1000.0 * 1000 * 1000
 
     var startTime: Long = 0L
     var stopTime: Long  = 0L
@@ -61,7 +61,7 @@ object KafkaLoadSpec {
     }
 
     def handle: Receive = {
-      case payload: String ⇒
+      case _: String ⇒
     }
   }
 }
@@ -74,7 +74,7 @@ class KafkaLoadSpec
     with KafkaTest {
   import KafkaLoadSpec._
 
-  val systemConfig = system.settings.config
+  val systemConfig: Config = system.settings.config
 
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
 
@@ -85,16 +85,16 @@ class KafkaLoadSpec
 
   "A Kafka Journal" must {
     "have some reasonable throughput" in {
-      val warmCycles = 100L  // set to 10000L to get reasonable results
-      val loadCycles = 1000L // set to 300000L to get reasonable results
+      val warmCycles = 10L  // set to 10000L to get reasonable results
+      val loadCycles = 100L // set to 300000L to get reasonable results
 
       val processor1 = system.actorOf(Props(classOf[TestPersistentActor], "test"))
-      1L to warmCycles foreach { i ⇒
+      1L to warmCycles foreach { _ ⇒
         processor1 ! "a"
       }
       processor1 ! "start"
       expectMsg("started")
-      1L to loadCycles foreach { i ⇒
+      1L to loadCycles foreach { _ ⇒
         processor1 ! "a"
       }
       processor1 ! "stop"

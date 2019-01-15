@@ -1,16 +1,16 @@
 package akka.persistence.kafka.snapshot
 
-import akka.persistence.SnapshotProtocol._
-import akka.persistence._
-import akka.persistence.kafka.server._
-import akka.persistence.snapshot.SnapshotStoreSpec
-import akka.testkit.TestProbe
 import com.typesafe.config.{Config, ConfigFactory}
+import akka.persistence._
+import akka.persistence.SnapshotProtocol._
+import akka.persistence.snapshot.SnapshotStoreSpec
+import akka.persistence.kafka.server._
+import akka.testkit.TestProbe
 
 class KafkaSnapshotStoreSpec extends SnapshotStoreSpec(config = ConfigFactory.parseString(s"""
       |akka.persistence.journal.plugin = "kafka-journal"
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
-      |akka.test.single-expect-default = 10s
+      |akka.test.single-expect-default = 20s
       |kafka-snapshot-store.consumer.fetch.message.max.bytes = 11000000
       |kafka-snapshot-store.ignore-orphan = false
       |kafka-snapshot-store.producer.max.request.size = 11000000

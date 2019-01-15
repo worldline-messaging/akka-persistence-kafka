@@ -3,11 +3,11 @@ package akka.persistence.kafka.snapshot
 import akka.actor._
 import akka.pattern.ask
 import akka.persistence._
-import akka.persistence.kafka._
-import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import akka.persistence.snapshot.SnapshotStore
-import akka.serialization.{Serialization, SerializationExtension}
+import akka.persistence.kafka._
+import akka.serialization.SerializationExtension
 import akka.util.Timeout
+import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.collection.JavaConverters._
@@ -17,13 +17,13 @@ import scala.util.control.NonFatal
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
   import context.dispatcher
 
-  val extension: Persistence = Persistence(context.system)
+  val extension = Persistence(context.system)
 
   type RangeDeletions  = Map[String, SnapshotSelectionCriteria]
   type SingleDeletions = Map[String, List[SnapshotMetadata]]
 
-  val serialization: Serialization = SerializationExtension(context.system)
-  val config                       = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
+  val serialization = SerializationExtension(context.system)
+  val config        = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
 
   val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)
 
@@ -78,7 +78,6 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
               .contains(snapshot.metadata.sequenceNr)
 
         load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
-
       }
     } yield snapshot
   }

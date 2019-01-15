@@ -1,5 +1,7 @@
 package akka.persistence.kafka.journal
 
+import java.io.NotSerializableException
+
 import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
 import akka.persistence.journal.AsyncWriteJournal
@@ -11,17 +13,18 @@ import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
-import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.errors.ProducerFencedException
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
-import scala.concurrent.duration._
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite, Promise[Unit])])
+
 private case object CloseWriter
 
 class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLogging {
+
   import context.dispatcher
 
   type Deletions = Map[String, (Long, Boolean)]
@@ -42,12 +45,13 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   override def receivePluginInternal: Receive = localReceive.orElse(super.receivePluginInternal)
 
   private def localReceive: Receive = {
-    case ReadHighestSequenceNr(_, persistenceId, _) ⇒
-      import akka.pattern.pipe
-      Future(ReadHighestSequenceNrSuccess(readHighestSequenceNr(persistenceId)))
-        .recover { case t ⇒ ReadHighestSequenceNrFailure(t) }
-        .pipeTo(sender())
-      ()
+    case ReadHighestSequenceNr(fromSequenceNr, persistenceId, _) ⇒
+      try {
+        val highest = readHighestSequenceNr(persistenceId, fromSequenceNr)
+        sender ! ReadHighestSequenceNrSuccess(highest)
+      } catch {
+        case e: Exception ⇒ sender ! ReadHighestSequenceNrFailure(e)
+      }
   }
 
   // --------------------------------------------------------------------------------------
@@ -68,7 +72,18 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
       case (pid, aws) ⇒ writerFor(pid) ! SeqOfAtomicWritesPromises(aws)
     }
 
-    Future.sequence(msgsWithPromises.map { case (_, p) ⇒ p.future.map(Success(_)).recover { case e ⇒ Failure(e) } })
+    val f = Future.sequence(msgsWithPromises.map { case (_, p) ⇒ p.future.map(Success(_)).recover { case e ⇒ Failure(e) } })
+    f.flatMap { results =>
+      val fatals = results.filter{_.isFailure}.filter {_.failed.get match {
+        case fwe:FatalWriterException => true
+        case _ => false
+      }}
+      if(fatals.nonEmpty) {
+        Future.failed(fatals.head.failed.get.getCause)
+      } else {
+        f
+      }
+    }
   }
 
   private def writerFor(persistenceId: String): ActorRef =
@@ -83,18 +98,17 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] =
     Future.successful(deleteMessagesTo(persistenceId, toSequenceNr, permanent = false))
 
-  def deleteMessagesTo(persistenceId: String, toSequenceNr: Long, permanent: Boolean): Unit = {
-    deletions = deletions + (persistenceId → ((toSequenceNr, permanent)))
-  }
+  def deleteMessagesTo(persistenceId: String, toSequenceNr: Long, permanent: Boolean): Unit =
+    deletions = deletions + persistenceId.→((toSequenceNr, permanent))
 
   // --------------------------------------------------------------------------------------
   //  Journal reads
   // --------------------------------------------------------------------------------------
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] =
-    Future(readHighestSequenceNr(persistenceId))
+    Future(readHighestSequenceNr(persistenceId, fromSequenceNr))
 
-  def readHighestSequenceNr(persistenceId: String): Long = {
+  def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
     Math.max(nextOffsetFor(config.txnAwareConsumerConfig, topic, config.partition) - 1, 0)
   }
@@ -120,13 +134,10 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     val adjustedNum  = toSequenceNr - adjustedFrom + 1L
     val adjustedTo   = if (max < adjustedNum) adjustedFrom + max - 1L else toSequenceNr
 
-    //lastSequenceNr
     val iter = persistentIterator(journalTopic(persistenceId), adjustedFrom - 1L)
     iter.map(p ⇒ if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foldLeft(adjustedFrom) {
       case (_, p) ⇒ if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p); p.sequenceNr
     }
-
-    ()
 
   }
 
@@ -138,24 +149,21 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   }
 }
 
+private class FatalWriterException(exception:Throwable) extends Throwable(exception)
+
 private class KafkaJournalWriter(
     journalPath: String,
     index: Int,
     config: KafkaJournalConfig,
     serialization: Serialization
 ) extends Actor
-    with ActorLogging
-    with UnboundedStash {
-
-  import context.dispatcher
-
+    with ActorLogging {
   var msgProducer: KafkaProducer[String, Array[Byte]] = createMessageProducer(journalPath, index)
   var evtProducer: KafkaProducer[String, Array[Byte]] = createEventProducer(journalPath, index)
 
   def receive: PartialFunction[Any, Unit] = {
     case messages: SeqOfAtomicWritesPromises ⇒
       writeBatchMessages(messages.messages)
-      ()
     case CloseWriter ⇒
       msgProducer.close()
       evtProducer.close()
@@ -176,83 +184,131 @@ private class KafkaJournalWriter(
     (recordMsgs, recordEvents)
   }
 
-  private def writeBatchMessages(
-      batches: Seq[(AtomicWrite, Promise[Unit])],
-      retry: Int = config.failedRetries
-  ): Boolean = {
-
-    var canUnstash = true
-
-    Try {
-      msgProducer.beginTransaction()
-      evtProducer.beginTransaction()
-      var futureResults: Seq[Future[Unit]] = Nil
-      batches.foreach {
-        case (batch, _) ⇒
-          val (recordMsgs, recordEvents) = buildRecords(batch.payload)
-          futureResults ++= recordMsgs.map { recordMsg ⇒
-            sendFuture(msgProducer, recordMsg)
-          } ++
-            recordEvents.map { recordMsg ⇒
-              sendFuture(evtProducer, recordMsg)
-            }
+  @tailrec
+  private def writeBatchMessages(batches: Seq[(AtomicWrite, Promise[Unit])]): Unit = {
+    if (batches.nonEmpty) {
+      val size = batches.head._1.size
+      val (b1, b2) = if (size == 1) {
+        batches.span { case (aw, _) ⇒ aw.size == 1 }
+      } else {
+        (List(batches.head), batches.tail)
       }
-      msgProducer.commitTransaction()
-      evtProducer.commitTransaction()
-      batches.foreach(x ⇒ x._2.success(()))
 
-    } recover {
-      case pfe: ProducerFencedException ⇒
-        log.error(pfe, "An error occurs")
+      try {
+        sendBatches(b1)
+      } catch {
+        case t: Throwable ⇒ log.error(t, "unable to send atomic batch")
+      }
+
+      writeBatchMessages(b2)
+    }
+  }
+
+  def tryBeginConnection: Boolean = Try(msgProducer.beginTransaction()).isSuccess
+
+  def sendBatches(bs: Seq[(AtomicWrite, Promise[Unit])], retry: Int = config.failedRetries): Unit = {
+    var evtTrnBegin                              = false
+    var doCommit                                 = tryBeginConnection
+    var results: Seq[(Try[Unit], Promise[Unit])] = Nil
+
+    var abortException:Option[Throwable] = None
+
+    if (doCommit) {
+      results = bs.map {
+        case (batch, p) ⇒
+          try {
+            if (doCommit) {
+              val (recordMsgs, recordEvents) = buildRecords(batch.payload)
+
+              recordMsgs.foreach { recordMsg ⇒
+                sendFuture(msgProducer, recordMsg)
+              }
+
+              if (recordEvents.nonEmpty) {
+                if (!evtTrnBegin) {
+                  evtProducer.beginTransaction()
+                  evtTrnBegin = true
+                }
+                recordEvents.foreach { recordMsg ⇒
+                  sendFuture(evtProducer, recordMsg)
+                }
+              }
+              (Success(()), p)
+            } else {
+              abortException.fold[(Try[Unit],Promise[Unit])] {
+                (Success(()),p)
+              } { exc =>
+                (Failure(exc),p)
+              }
+            }
+          } catch {
+            case pfe: ProducerFencedException ⇒
+              log.error(pfe, "An error occurs") //Should occur only once
+              msgProducer.close()
+              evtProducer.close()
+              //Recreate for the next batch
+              msgProducer = createMessageProducer(journalPath, index)
+              evtProducer = createEventProducer(journalPath, index)
+              doCommit = false
+              if(abortException.isEmpty) abortException = Some(pfe)
+              (Failure(new FatalWriterException(pfe)),p)
+            case nse: NotSerializableException ⇒
+              log.error(nse, "An error occurs")
+              (Failure(nse), p)
+            case e: Throwable ⇒
+              log.error(e, "An error occurs")
+              doCommit = false
+              if(abortException.isEmpty) abortException = Some(e)
+              (Failure(new FatalWriterException(e)),p)
+          }
+      }
+    }
+
+    var commitException: Option[Throwable] = None
+    if (doCommit) {
+      // If a kafka node crashed we could have an exception
+      try {
+        msgProducer.commitTransaction()
+        if (evtTrnBegin) {
+          evtProducer.commitTransaction()
+        }
+      } catch {
+        case t: Throwable ⇒
+          log.error(t, "could not commit transaction")
+          doCommit = false // set doCommit to false, in case of retry
+          commitException = Some(new FatalWriterException(t))
+      }
+    } else {
+      // If a kafka node crashed we could have an exception
+      Try {
+        msgProducer.abortTransaction()
+        if (evtTrnBegin) {
+          evtProducer.abortTransaction()
+        }
+      }
+    }
+
+    if (retry > 0 && !doCommit) {
+      log.warning("something went wrong with persistence. retrying ({} attempts remaining)", retry)
+      Try {
         msgProducer.close()
         evtProducer.close()
         msgProducer = createMessageProducer(journalPath, index)
         evtProducer = createEventProducer(journalPath, index)
-        batches.foreach(x ⇒ x._2.failure(pfe))
-      case ke: KafkaException ⇒
-        log.error(ke, "An error occurs")
-        Try {
-          msgProducer.abortTransaction()
-          evtProducer.abortTransaction()
-        }
-        if (retry > 0) {
-          log.warning("waiting for {} ms before retrying", config.waitFailedRetry)
-          Try {
-            msgProducer.close()
-            evtProducer.close()
-            msgProducer = createMessageProducer(journalPath, index)
-            evtProducer = createEventProducer(journalPath, index)
-          }
-          // We don't process anything anymore until we wait the expected Retry trigger
-          context.become(waitForRetry, discardOld = false)
-          context.system.scheduler.scheduleOnce(config.waitFailedRetry millis, self, Retry(batches, retry - 1))
-          canUnstash = false
-        } else {
-          batches.foreach(x ⇒ x._2.failure(ke))
-        }
-      case e: Throwable ⇒
-        log.error(e, "An error occurs")
-        msgProducer.abortTransaction()
-        evtProducer.abortTransaction()
-        batches.foreach(x ⇒ x._2.failure(e))
+      }
+      sendBatches(bs, retry - 1)
+    } else if (commitException.isDefined) {
+      results.foreach { case (_, p) ⇒ p.failure(commitException.get) }
+    } else {
+      results.foreach { case (r, p) ⇒ p.complete(r) }
     }
-    canUnstash
+
   }
 
   override def postStop(): Unit = {
     msgProducer.close()
     evtProducer.close()
     super.postStop()
-  }
-
-  def waitForRetry: Receive = {
-    case Retry(batches, retry) ⇒
-      context.unbecome()
-      if (writeBatchMessages(batches, retry))
-        unstashAll()
-
-    // We do nothing until we get the Retry trigger
-    case _ ⇒ stash()
   }
 
   private def createMessageProducer(journalPath: String, index: Int) = {
@@ -273,6 +329,3 @@ private class KafkaJournalWriter(
     p
   }
 }
-
-// trigger to retry
-case class Retry(batches: Seq[(AtomicWrite, Promise[Unit])], retry: Int)
