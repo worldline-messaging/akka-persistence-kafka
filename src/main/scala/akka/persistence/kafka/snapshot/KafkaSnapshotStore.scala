@@ -12,7 +12,6 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
-import scala.util.control.NonFatal
 
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
   import context.dispatcher
@@ -110,28 +109,16 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   private def snapshot(topic: String, offset: Long): KafkaSnapshot = {
-    var retries                       = config.failedSnapshotRetries
-    var result: Option[KafkaSnapshot] = None
-    while (retries > 0 && result.isEmpty) {
-      val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, config.pollTimeOut)
-      if (!iter.hasNext && offset > 0)
-        log.warning(
-          s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)"
-        )
-      try {
-        result = Some(serialization.deserialize(iter.next().value(), classOf[KafkaSnapshot]).get)
-      } catch {
-        case NonFatal(e) ⇒
-          retries -= 1
-          if (retries == 0) {
-            log.error(e, "could not read snapshot")
-            throw e
-          }
-      } finally {
-        iter.close()
-      }
+    val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, config.pollTimeOut)
+    if (!iter.hasNext && offset > 0)
+      log.warning(
+        s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)"
+      )
+    try {
+      serialization.deserialize(iter.next().value(), classOf[KafkaSnapshot]).get
+    } finally {
+      iter.close()
     }
-    result.get
   }
 
   private def snapshotTopic(persistenceId: String): String =
