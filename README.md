@@ -2,20 +2,20 @@ Kafka Plugins for Akka Persistence
 ==================================
 This is a fork of the [Krasserm project](https://github.com/krasserm/akka-persistence-kafka). It has been deployed in production and works well on our environments.
 
-Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.3.11/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
+Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.5.19/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
 
-[![Build Status](https://travis-ci.org/krasserm/akka-persistence-kafka.svg?branch=travis)](https://travis-ci.org/krasserm/akka-persistence-kafka)
+[![Build Status](https://travis-ci.org/worldline-messaging/akka-persistence-kafka.svg?branch=travis)](https://travis-ci.org/worldline-messaging/akka-persistence-kafka)
 
 Dependency
 ----------
 
 To include the Kafka plugins into your `sbt` project, add the following lines to your `build.sbt` file:
 
-    resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+    resolvers += "worldline-messaging at bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
 
-    libraryDependencies += "com.github.krasserm" %% "akka-persistence-kafka" % “0.4”
+    libraryDependencies += "com.github.worldline-messaging" %% "akka-persistence-kafka" % “0.9.0”
 
-This version of `akka-persistence-kafka` depends on Kafka 0.8.2.1, Akka 2.3.11 and is cross-built against Scala 2.10.4 and 2.11.6. A complete list of released versions is [here](https://github.com/krasserm/akka-persistence-kafka/wiki/Releases).
+This version of `akka-persistence-kafka` depends on Kafka 2.1.0, Akka 2.5.19 and is cross-built against Scala 2.12.3. A complete list of released versions is [here](https://github.com/worldline-messaging/akka-persistence-kafka/wiki/Releases).
 
 Usage hints
 -----------
@@ -187,10 +187,6 @@ There are many other libraries that can be used to consume (event) streams from 
 
 - The journal plugin does not support features that have been deprecated in Akka 2.3.4 (channels and single event deletions).
 - Range deletions are not persistent (which may not be relevant for applications that configure Kafka with reasonably small retention times).
-
-### Example source code
-
-The complete source code of all examples from previous sections is in [Example.scala](https://github.com/krasserm/akka-persistence-kafka/blob/master/src/test/scala/akka/persistence/kafka/example/Example.scala), the corresponding configuration in [example.conf](https://github.com/krasserm/akka-persistence-kafka/blob/master/src/test/resources/example.conf).
 
 Snapshot store plugin
 ---------------------

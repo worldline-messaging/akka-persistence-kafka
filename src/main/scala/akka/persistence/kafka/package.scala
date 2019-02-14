@@ -25,7 +25,7 @@ package object kafka {
     p.send(
       rec,
       (metadata: RecordMetadata, exception: Exception) ⇒ {
-        if (metadata != null) {
+        if (exception == null) {
           promise.complete(Success())
           ()
         } else {

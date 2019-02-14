@@ -12,14 +12,11 @@ import akka.actor._
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
-import com.sun.org.apache.xalan.internal.xsltc.compiler.util.ErrorMsg
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
-import org.apache.kafka.common.errors.ProducerFencedException
+import org.apache.kafka.common.errors.{OutOfOrderSequenceException, ProducerFencedException}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.collection.immutable.Seq
-import scala.util.control.NonFatal
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite,Promise[Unit])])
 private case object CloseWriter
@@ -176,7 +173,7 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
       try {
         sendBatches(b1)
       } catch {
-        case t:Throwable => log.error(t,"unable to send atomic batch")
+        case t:Exception => log.error(t,"unable to send atomic batch")
       }
 
       writeBatchMessages(b2)
@@ -185,16 +182,13 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
 
   def sendBatches(bs:Seq[(AtomicWrite,Promise[Unit])]): Unit = {
     var evtTrnBegin = false
-    // false: Error that abort the transaction
-    // true: No error during this batch. Commit the transaction
-    var doCommit = true
 
     var abortException:Option[Throwable] = None
 
     msgProducer.beginTransaction()
     val results = bs.map { case (batch, p) =>
       try {
-        if(doCommit) { //An error occurs in this batch. We should not continue to send to kafka
+        if(abortException.isEmpty) { //An error occurs in this batch. We should not continue to send to kafka
           val (recordMsgs, recordEvents) = buildRecords(batch.payload)
 
           recordMsgs.foreach { recordMsg =>
@@ -206,10 +200,9 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
               evtProducer.beginTransaction()
               evtTrnBegin = true
             }
-            recordEvents.foreach { recordMsg =>
-              sendFuture(evtProducer, recordMsg)
+            recordEvents.foreach { recordEvent =>
+              sendFuture(evtProducer, recordEvent)
             }
-
           }
           (Success(),p)
         } else {
@@ -221,25 +214,23 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
         }
       } catch {
         case pfe: ProducerFencedException => log.error(pfe, "An error occurs") //Should occur only once
-          msgProducer.close()
-          evtProducer.close()
-          //Recreate for the next batch
-          msgProducer = createMessageProducer(journalPath,index)
-          evtProducer = createEventProducer(journalPath,index)
-          doCommit = false
+          rebuildProducers()
           if(abortException.isEmpty) abortException = Some(pfe)
           (Failure(new FatalWriterException(pfe)),p)
+        case ooose: OutOfOrderSequenceException => log.error(ooose, "An error occurs")
+          rebuildProducers()
+          if(abortException.isEmpty) abortException = Some(ooose)
+          (Failure(new FatalWriterException(ooose)),p)
         case nse:NotSerializableException => log.error(nse, "An error occurs")
           (Failure(nse),p)
-        case e: Throwable => log.error(e, "An error occurs")
-          doCommit = false
+        case e: Exception => log.error(e, "An error occurs")
           if(abortException.isEmpty) abortException = Some(e)
           (Failure(new FatalWriterException(e)),p)
       }
     }
 
     try {
-      if (doCommit) {
+      if (abortException.isEmpty) {
         msgProducer.commitTransaction()
         if (evtTrnBegin) {
           evtProducer.commitTransaction()
@@ -252,9 +243,15 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
       }
       results.foreach {case (r,p) => p.complete(r)}
     } catch {
-      case e:Throwable =>
-        log.error(e, "Unable to terminate the transaction")
-        results.foreach {case (_,p) => p.failure(new FatalWriterException(e))}
+      case e:Exception =>
+        if(abortException.isEmpty) {
+          log.error(e, "Unable to commit the transaction")
+        } else {
+          log.error(e, "Unable to abort the transaction")
+        }
+        rebuildProducers() //We have to rebuild the producers since an error on commit or abort lets the producer in error state.
+        val exception = abortException.getOrElse(e)
+        results.foreach {case (_,p) => p.failure(new FatalWriterException(exception))}
     }
   }
 
@@ -262,6 +259,14 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
     msgProducer.close()
     evtProducer.close()
     super.postStop()
+  }
+
+  private def rebuildProducers():Unit = {
+    msgProducer.close()
+    evtProducer.close()
+    //Recreate for the next batch
+    msgProducer = createMessageProducer(journalPath,index)
+    evtProducer = createEventProducer(journalPath,index)
   }
 
   private def createMessageProducer(journalPath:String, index:Int) = {

@@ -28,18 +28,17 @@ object Configuration {
 }
 
 class TestServer(config: Config) extends KafkaServerTestHarness {
-  val kafkaConfig: Config = config.getConfig("kafka")
 
   private def serverProps() = {
     val serverProps = new Properties()
-    kafkaConfig.entrySet.asScala.foreach { entry ⇒
+    config.entrySet.asScala.foreach { entry ⇒
       serverProps.put(entry.getKey, entry.getValue.unwrapped.toString)
     }
     serverProps
   }
 
   override def generateConfigs: Seq[KafkaConfig] = {
-    Seq(TestUtils.createBrokerConfig(nodeId = 1, zkConnect = zkConnect, port = kafkaConfig.getInt("port")))
+    Seq(TestUtils.createBrokerConfig(nodeId = 1, zkConnect = zkConnect, port = config.getInt("port")))
       .map(KafkaConfig.fromProps(_, serverProps()))
   }
 }
@@ -47,19 +46,20 @@ class TestServer(config: Config) extends KafkaServerTestHarness {
 import org.scalatest._
 trait KafkaTest extends BeforeAndAfterAll { this: Suite ⇒
 
-  var server:Option[TestServer] = None
+  var servers:List[TestServer] = List.empty
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    if(Configuration.configApp.hasPath("test-server")) {
-      val serverConfig = Configuration.configApp.getConfig("test-server")
-      server = Some(new TestServer(serverConfig))
-      server.foreach{ s => s.setUp() }
+    if(Configuration.configApp.hasPath("test-server.instances")) {
+      val serverConfig = Configuration.configApp.getConfigList("test-server.instances").asScala
+      servers = serverConfig.map {
+        sc => val s = new TestServer(sc); s.setUp(); s
+      }.toList
     }
   }
 
   override def afterAll(): Unit = {
-    server.foreach{ s => s.tearDown() }
+    servers.foreach{ s => s.tearDown() }
     super.afterAll()
   }
 }

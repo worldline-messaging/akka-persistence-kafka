@@ -1,14 +1,14 @@
-organization := "com.github.krasserm"
+organization := "com.github.worldline-messaging"
 
 name := "akka-persistence-kafka"
 
-version := "0.8-SNAPSHOT"
+version := "0.9.0"
 
 scalaVersion := "2.12.3"
 
 crossScalaVersions := Seq("2.12.3")
 
-resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+resolvers += "worldline-messaging at bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
 
 parallelExecution in Test := false
 
@@ -39,7 +39,7 @@ libraryDependencies ++= Seq(
   artifact.name + "_" + sv.binary + "-" + suffix + "." + artifact.extension
 }*/
 
-publishTo := Some("Bintray API Realm" at "https://api.bintray.com/maven/worldline-messaging-org/maven/akka-persistence-kafka")
+publishTo := Some("Bintray API Realm" at "https://api.bintray.com/maven/worldline-messaging-org/maven/akka-persistence-kafka;publish=1")
 credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
