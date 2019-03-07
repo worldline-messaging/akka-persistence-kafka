@@ -1,13 +1,9 @@
 package akka.persistence.kafka.integration
 
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicLong
 
-import akka.actor.Actor.Receive
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.pattern.ask
-import akka.persistence.kafka.integration.KafkaIntegrationSpec.config
-import akka.persistence.kafka.server.{Configuration, ConfigurationOverride, TestServer}
 import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
@@ -15,10 +11,9 @@ import com.typesafe.config.{Config, ConfigFactory}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Random
-import scala.collection.JavaConverters._
 
 object BenchCoherencePersistentActor {
-  case object Write
+  case class Write(value:Long)
   case object Compute
 
   def props(id:Int, messageStart:String, snapshotStart:String, gounter:ActorRef, latch: CountDownLatch, si:Int): Props = Props(new BenchCoherencePersistentActor(id,messageStart,snapshotStart,gounter, latch, si))
@@ -37,8 +32,6 @@ class CounterActor extends Actor with ActorLogging {
     case Get => sender() ! cpt
   }
 }
-
-case class Snapshot(name:String, data:String)
 
 /**
   * Created by giena on 16/11/17.
@@ -59,45 +52,47 @@ class BenchCoherencePersistentActor(id:Int, messageStart:String, snapshotStart:S
   var firstValueRecov = 0L
   var lastValueRecov = 0L
 
+  var lastValueSnap = 0L
+
   override def persistenceId: String = s"bench-persist-$id"
 
   override def receiveRecover: Receive = {
-    case SnapshotOffer(metadata,value:Snapshot) =>
-      val d = value.data.toLong
-      println(s"RECOVERING ${value.name} $d with $metadata at $lastSequenceNr")
+    case SnapshotOffer(metadata,value) =>
+      val d = value.toString.toLong
+      println(s"RECOVERING $persistenceId $d with $metadata at $lastSequenceNr")
       if(startRecov==0L)
         startRecov = System.currentTimeMillis()
       cptRecov = d
-    case RecoveryCompleted => println("RECOVERED"); latch.countDown()
+    case RecoveryCompleted => latch.countDown()
       if(startRecov==0) timeRecov=0 else timeRecov = System.currentTimeMillis()-startRecov;
       lastValueRecov = cptRecov
-      println(s"[$firstValueRecov:$lastValueRecov:$numRecov:$cptRecov:$timeRecov]")
-      cptMsg = cptRecov
+      println(s"RECOVERED $persistenceId [$firstValueRecov:$lastValueRecov:$numRecov:$cptRecov:$timeRecov]")
     case msg:String =>
       if(startRecov==0L) startRecov = System.currentTimeMillis()
       numRecov = numRecov + 1
       val newValue = msg.toLong
       if(firstValueRecov == 0L) firstValueRecov = newValue
-      if(newValue-cptRecov > 1) throw new IllegalStateException(s"$persistenceId with $newValue-$cptRecov = ${newValue-cptRecov}");
+      if(newValue-cptRecov != 1) throw new IllegalStateException(s"$persistenceId with $newValue-$cptRecov = ${newValue-cptRecov} for $numRecov");
       cptRecov = newValue
   }
 
   override def receiveCommand: Receive = {
-    case Write =>
+    case Write(v) =>
       if(startMsg==0L) startMsg=System.currentTimeMillis()
-      persistAsync(messageStart+cptMsg) { _ =>
+      persistAsync(messageStart+(cptRecov+v)) { _ =>
         gounter ! Add
         lastMsg = System.currentTimeMillis()
-        cptMsg = cptMsg + 1
+        cptMsg = cptRecov+v
         if(cptMsg!=0 && cptMsg%si==0) {
-          saveSnapshot(Snapshot(s"snapshot $snaps at $cptMsg", snapshotStart + cptMsg))
+          saveSnapshot(snapshotStart + cptMsg)
+          lastValueSnap = cptMsg
           snaps = snaps + 1
         }
       }
 
     case Compute =>
       val time = lastMsg-startMsg
-      sender() ! s"[$cptMsg:$snaps:$time][$numRecov:$timeRecov]"
+      sender() ! s"[$cptMsg:$snaps:$lastValueSnap:$time][$numRecov:$timeRecov]"
   }
 }
 
@@ -106,31 +101,35 @@ object PerfActor extends App  {
   import CounterActor._
   import Math._
   val nm = 2000000
-  val na = 1
+  val na = 10
   val randomWrite = false //false = RR
   val ml = 1000
-  val sl = 1000*10
+  val sl = 1000 * 10
   val si = 150000
   val ti = 50000
 
   val config: Config = ConfigFactory.parseString(
     """
+      |akka.persistence.journal.plugin = "kafka-journal"
+      |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
+      |akka.test.single-expect-default = 20s
+      |akka.test.default-timeout = 20s
+      |
+      |kafka-journal.producer.bootstrap.servers = "localhost:9092"
+      |kafka-journal.event.producer.bootstrap.servers = "localhost:9092"
+      |kafka-journal.consumer.bootstrap.servers = "localhost:9092"
+      |kafka-journal.consumer.poll-timeout = 10000
+      |
+      |kafka-snapshot-store.producer.bootstrap.servers = "localhost:9092"
+      |kafka-snapshot-store.consumer.bootstrap.servers = "localhost:9092"
+      |kafka-snapshot-store.consumer.poll-timeout = 10000
+      |
       |kafka-journal.circuit-breaker.max-failures = 10
       |kafka-journal.circuit-breaker.call-timeout = 60s
       |kafka-journal.circuit-breaker.reset-timeout = 120s
     """.stripMargin)
 
-
   val configApp = config.withFallback(ConfigFactory.load())
-
-  val servers = if(configApp.hasPath("test-server.instances")) {
-    val serverConfig = configApp.getConfigList("test-server.instances").asScala
-    serverConfig.map {
-      sc => val s = new TestServer(sc); s.setUp(); s
-    }.toList
-  } else {
-    List.empty
-  }
 
   val latch = new CountDownLatch(na)
 
@@ -145,18 +144,21 @@ object PerfActor extends App  {
 
   var actors = Vector.tabulate(na)(id => system.actorOf(props(id,startMsg,startSnpsht,gounter,latch,si)))
 
+  implicit val executionContext = system.dispatchers.lookup("my-dispatcher")
+
+  var actorWtrites = Map.empty[Int,Long].withDefaultValue(0L)
 
   latch.await()
 
   println(s"Writing $nm messages to $na actors ($randomWrite,$ml,$sl,$si)")
   (1 to nm).foreach { i =>
     val index = if(randomWrite) abs(Random.nextInt())%na else i%na
+    val w = actorWtrites(index)+1L
     val ref = actors(index)
-    ref ! Write
+    ref ! Write(w)
+    actorWtrites = actorWtrites + (index -> w)
     if(i%ti==0) Thread.sleep(1000)
   }
-
-  implicit val executionContext = system.dispatchers.lookup("my-dispatcher")
 
   implicit val timeout = Timeout(5 seconds)
 
@@ -177,7 +179,6 @@ object PerfActor extends App  {
     println(s"Actor $id. $response.")
   }
 
-  servers.foreach {s => s.tearDown()}
   system.terminate()
 
 }
