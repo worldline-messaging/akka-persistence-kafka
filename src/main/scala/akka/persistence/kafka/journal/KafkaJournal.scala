@@ -176,8 +176,11 @@ private class KafkaJournalWriter(
   private def buildRecords(messages: Seq[PersistentRepr]) = {
     val recordMsgs = for {
       m ← messages
-    } yield
-      new ProducerRecord[String, Array[Byte]](journalTopic(m.persistenceId), "static", serialization.serialize(m).get)
+    } yield new ProducerRecord[String, Array[Byte]](
+      journalTopic(m.persistenceId),
+      "static",
+      serialization.serialize(m).get
+    )
 
     val recordEvents = for {
       m ← messages
