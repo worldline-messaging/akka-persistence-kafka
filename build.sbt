@@ -1,4 +1,3 @@
-import Dependencies._
 import sbt.Keys.{licenses, publishArtifact, publishTo}
 
 scalafmtOnCompile in ThisBuild := true
