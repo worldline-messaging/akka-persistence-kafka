@@ -14,8 +14,8 @@ package object kafka {
 
   def configToProperties(config: Config, extra: Map[String, String] = Map.empty): Map[String, String] = {
 
-    config.entrySet.asScala.map { entry ⇒
-      entry.getKey → entry.getValue.unwrapped.toString
+    config.entrySet.asScala.map { entry =>
+      entry.getKey -> entry.getValue.unwrapped.toString
     }.toMap ++ extra
 
   }
@@ -24,7 +24,7 @@ package object kafka {
     val promise = Promise[Unit]()
     p.send(
       rec,
-      (metadata: RecordMetadata, exception: Exception) ⇒ {
+      (metadata: RecordMetadata, exception: Exception) => {
         if (metadata != null) {
           promise.complete(Success(()))
           ()

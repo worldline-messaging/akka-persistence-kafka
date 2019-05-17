@@ -12,8 +12,8 @@ class KafkaEventSerializer(system: ExtendedActorSystem) extends Serializer {
   def includeManifest: Boolean = false
 
   def toBinary(o: AnyRef): Array[Byte] = o match {
-    case e: Event ⇒ eventFormatBuilder(e).build().toByteArray
-    case _        ⇒ throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
+    case e: Event => eventFormatBuilder(e).build().toByteArray
+    case _        => throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
   }
 
   def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef =

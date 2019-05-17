@@ -22,7 +22,7 @@ class MyPersistentActor extends PersistentActor {
 
   override def snapshotSequenceNr =
     inflight
-      .reduceLeft { (a, b) ⇒
+      .reduceLeft { (a, b) =>
         val offsetA = a.offset.get
         val offsetB = b.offset.get
         if (offsetA < offsetB) {
@@ -37,52 +37,52 @@ class MyPersistentActor extends PersistentActor {
   override val persistenceId: String = "persistenceId1"
 
   override def receiveRecover: Receive = {
-    case SnapshotOffer(_, _) ⇒ println(s"SnapshotOffer")
-    case PersistId(id) ⇒
+    case SnapshotOffer(_, _) => println(s"SnapshotOffer")
+    case PersistId(id) =>
       println(s"receiveRecover  : Recovering an event = PersistId($id) with sequence $lastSequenceNr")
       inflight.enqueue(SendId(id, Some(lastSequenceNr)))
 
-    case PersistAck(id) ⇒
+    case PersistAck(id) =>
       println(s"receiveRecover  : Recovering an event = PersistAck($id) with sequence $lastSequenceNr")
-      inflight = inflight.filter(e ⇒ e.id != id)
+      inflight = inflight.filter(e => e.id != id)
 
-    case RecoveryCompleted ⇒ println(s"RecoveryCompleted inflight : $inflight")
+    case RecoveryCompleted => println(s"RecoveryCompleted inflight : $inflight")
 
-    case other @ o ⇒ println(s"Unexpected receiveRecover $o")
+    case other @ o => println(s"Unexpected receiveRecover $o")
   }
 
   override def receiveCommand: Receive = {
-    case SendId(id, _) ⇒
+    case SendId(id, _) =>
       println(s"receiveCommand  : Received id SendId($id)")
-      persist(PersistId(id)) { persistId ⇒
+      persist(PersistId(id)) { persistId =>
         println(s"persist callback: persistId = persistID($persistId) persisted with lastSequenceNr $lastSequenceNr")
         inflight.enqueue(SendId(persistId.id, Some(lastSequenceNr)))
         println(s"persist SendId callback: inflight = $inflight")
       }
 
-    case Ack(id, _) ⇒
+    case Ack(id, _) =>
       println(s"receiveCommand  : Received ack Ack($id)")
-      persist(PersistAck(id)) { persistAck ⇒
+      persist(PersistAck(id)) { persistAck =>
         println(
           s"persist callback: persistAck = persistAck($persistAck) persisted with lastSequenceNr $lastSequenceNr"
         )
-        inflight = inflight.filter(e ⇒ e.id != persistAck.id)
+        inflight = inflight.filter(e => e.id != persistAck.id)
         println(s"persist Ack callback: inflight = $inflight")
       }
 
-    case "snapshot" ⇒
+    case "snapshot" =>
       println("snapshot")
       saveSnapshot(())
-    case "kaboom" ⇒
+    case "kaboom" =>
       throw new Exception("exploded!")
 
-    case SaveSnapshotSuccess(metadata) ⇒
+    case SaveSnapshotSuccess(metadata) =>
       println(s"SaveSnapshotSuccess for $metadata")
 
-    case SaveSnapshotFailure(metadata, cause) ⇒
+    case SaveSnapshotFailure(metadata, cause) =>
       println(s"Failure at saving snapshot $metadata caused by $cause")
 
-    case other @ o ⇒ println(s"Unexpected receiveCommand $o")
+    case other @ o => println(s"Unexpected receiveCommand $o")
   }
 }
 
@@ -108,7 +108,7 @@ object DatalessExample {
       p1 ! SendId(5 + base)
       Thread.sleep(10000)
     } catch {
-      case _ @e ⇒ println(e)
+      case _ @e => println(e)
     } finally {
       system.terminate()
     }

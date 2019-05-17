@@ -32,7 +32,7 @@ class TestServer(config: Config) extends KafkaServerTestHarness {
 
   private def serverProps() = {
     val serverProps = new Properties()
-    kafkaConfig.entrySet.asScala.foreach { entry ⇒
+    kafkaConfig.entrySet.asScala.foreach { entry =>
       serverProps.put(entry.getKey, entry.getValue.unwrapped.toString)
     }
     serverProps
@@ -45,7 +45,7 @@ class TestServer(config: Config) extends KafkaServerTestHarness {
 }
 
 import org.scalatest._
-trait KafkaTest extends BeforeAndAfterAll { this: Suite ⇒
+trait KafkaTest extends BeforeAndAfterAll { this: Suite =>
 
   var server: Option[TestServer] = None
 
@@ -54,14 +54,14 @@ trait KafkaTest extends BeforeAndAfterAll { this: Suite ⇒
     if (Configuration.configApp.hasPath("test-server")) {
       val serverConfig = Configuration.configApp.getConfig("test-server")
       server = Some(new TestServer(serverConfig))
-      server.foreach { s ⇒
+      server.foreach { s =>
         s.setUp()
       }
     }
   }
 
   override def afterAll(): Unit = {
-    server.foreach { s ⇒
+    server.foreach { s =>
       s.tearDown()
     }
     super.afterAll()

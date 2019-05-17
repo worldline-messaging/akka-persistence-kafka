@@ -21,7 +21,7 @@ object KafkaLoadSpec {
     """.stripMargin
   )
 
-  trait Measure extends { this: Actor ⇒
+  trait Measure extends { this: Actor =>
     val NanoToSecond: Double = 1000.0 * 1000 * 1000
 
     var startTime: Long = 0L
@@ -48,20 +48,20 @@ object KafkaLoadSpec {
     def receiveRecover: Receive = handle
 
     def receiveCommand: Receive = {
-      case c @ "start" ⇒
-        deferAsync(c) { _ ⇒
+      case c @ "start" =>
+        deferAsync(c) { _ =>
           startMeasure(); sender ! "started"
         }
-      case c @ "stop" ⇒
-        deferAsync(c) { _ ⇒
+      case c @ "stop" =>
+        deferAsync(c) { _ =>
           stopMeasure()
         }
-      case payload: String ⇒
+      case payload: String =>
         persistAsync(payload)(handle)
     }
 
     def handle: Receive = {
-      case _: String ⇒
+      case _: String =>
     }
   }
 }
@@ -89,17 +89,17 @@ class KafkaLoadSpec
       val loadCycles = 100L // set to 300000L to get reasonable results
 
       val processor1 = system.actorOf(Props(classOf[TestPersistentActor], "test"))
-      1L to warmCycles foreach { _ ⇒
+      1L to warmCycles foreach { _ =>
         processor1 ! "a"
       }
       processor1 ! "start"
       expectMsg("started")
-      1L to loadCycles foreach { _ ⇒
+      1L to loadCycles foreach { _ =>
         processor1 ! "a"
       }
       processor1 ! "stop"
       expectMsgPF(100.seconds) {
-        case throughput: Double ⇒ println(f"\nthroughput = $throughput%.2f persistent commands per second")
+        case throughput: Double => println(f"\nthroughput = $throughput%.2f persistent commands per second")
       }
     }
   }

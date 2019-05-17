@@ -19,8 +19,8 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
   def includeManifest: Boolean = false
 
   def toBinary(o: AnyRef): Array[Byte] = o match {
-    case ks: KafkaSnapshot ⇒ snapshotToBinary(ks)
-    case _                 ⇒ throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
+    case ks: KafkaSnapshot => snapshotToBinary(ks)
+    case _                 => throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
   }
 
   def snapshotToBinary(ks: KafkaSnapshot): Array[Byte] = {
@@ -67,12 +67,12 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
   }
 
   private def writeInt(outputStream: OutputStream, i: Int): Unit =
-    0 to 24 by 8 foreach { shift ⇒
+    0 to 24 by 8 foreach { shift =>
       outputStream.write(i >> shift)
     }
 
   private def readInt(inputStream: InputStream) =
-    (0 to 24 by 8).foldLeft(0) { (id, shift) ⇒
+    (0 to 24 by 8).foldLeft(0) { (id, shift) =>
       id | (inputStream.read() << shift)
     }
 }

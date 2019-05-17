@@ -35,13 +35,13 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   var singleDeletions: SingleDeletions = Map.empty.withDefaultValue(Nil)
 
   def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = Future.successful {
-    rangeDeletions += (persistenceId → criteria)
+    rangeDeletions += (persistenceId -> criteria)
   }
 
   def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = Future.successful {
     singleDeletions.get(metadata.persistenceId) match {
-      case Some(dels) ⇒ singleDeletions += (metadata.persistenceId → (metadata :: dels))
-      case None       ⇒ singleDeletions += (metadata.persistenceId → List(metadata))
+      case Some(dels) => singleDeletions += (metadata.persistenceId -> (metadata :: dels))
+      case None       => singleDeletions += (metadata.persistenceId -> List(metadata))
     }
   }
 
@@ -57,14 +57,14 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     val rangeDeletions  = this.rangeDeletions
 
     for {
-      highest ← if (config.ignoreOrphan) highestJournalSequenceNr(persistenceId) else Future.successful(Long.MaxValue)
+      highest <- if (config.ignoreOrphan) highestJournalSequenceNr(persistenceId) else Future.successful(Long.MaxValue)
       adjusted = if (config.ignoreOrphan &&
                      highest < criteria.maxSequenceNr &&
                      highest > 0L) criteria.copy(maxSequenceNr = highest)
       else criteria
       // highest  <- Future.successful(Long.MaxValue)
       // adjusted = criteria
-      snapshot ← Future {
+      snapshot <- Future {
         val topic = snapshotTopic(persistenceId)
         // if timestamp was unset on delete, matches only on same sequence nr
         def matcher(snapshot: KafkaSnapshot): Boolean =
@@ -76,12 +76,12 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
               .map(_.sequenceNr)
               .contains(snapshot.metadata.sequenceNr)
 
-        load(topic, matcher).map(s ⇒ SelectedSnapshot(s.metadata, s.snapshot))
+        load(topic, matcher).map(s => SelectedSnapshot(s.metadata, s.snapshot))
       }
     } yield snapshot
   }
 
-  def load(topic: String, matcher: KafkaSnapshot ⇒ Boolean): Option[KafkaSnapshot] = {
+  def load(topic: String, matcher: KafkaSnapshot => Boolean): Option[KafkaSnapshot] = {
     val offset = nextOffsetFor(config.snapshotConsumerConfig, topic, config.partition)
 
     @annotation.tailrec
@@ -103,8 +103,8 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     implicit val timeout: Timeout = config.readHighestSequenceNrTimeout
     val res                       = journal ? ReadHighestSequenceNr(0L, persistenceId, self)
     res.flatMap {
-      case ReadHighestSequenceNrSuccess(snr) ⇒ Future.successful(snr + 1)
-      case ReadHighestSequenceNrFailure(err) ⇒ Future.failed(err)
+      case ReadHighestSequenceNrSuccess(snr) => Future.successful(snr + 1)
+      case ReadHighestSequenceNrFailure(err) => Future.failed(err)
     }
   }
 

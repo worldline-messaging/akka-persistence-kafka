@@ -23,8 +23,8 @@ class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(co
     configToProperties(
       config.getConfig("producer"),
       Map(
-        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringSerializer",
-        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArraySerializer"
+        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   -> "org.apache.kafka.common.serialization.StringSerializer",
+        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.ByteArraySerializer"
       )
     )
 }

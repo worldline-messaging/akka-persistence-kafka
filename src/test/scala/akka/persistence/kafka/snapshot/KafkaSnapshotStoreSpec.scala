@@ -25,7 +25,7 @@ class KafkaSnapshotStoreSpec extends SnapshotStoreSpec(config = ConfigFactory.pa
       val snapshot    = Array.ofDim[Byte](1000 * 1000 * 2).toList
 
       snapshotStore.tell(SaveSnapshot(SnapshotMetadata("large", 100), snapshot), senderProbe.ref)
-      val metadata = senderProbe.expectMsgPF() { case SaveSnapshotSuccess(md) ⇒ md }
+      val metadata = senderProbe.expectMsgPF() { case SaveSnapshotSuccess(md) => md }
 
       snapshotStore.tell(LoadSnapshot("large", SnapshotSelectionCriteria.Latest, Long.MaxValue), senderProbe.ref)
       senderProbe.expectMsg(LoadSnapshotResult(Some(SelectedSnapshot(metadata, snapshot)), Long.MaxValue))
