@@ -103,7 +103,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     Future.successful(deleteMessagesTo(persistenceId, toSequenceNr, permanent = false))
 
   def deleteMessagesTo(persistenceId: String, toSequenceNr: Long, permanent: Boolean): Unit =
-    deletions = deletions + persistenceId.->((toSequenceNr, permanent))
+    deletions += persistenceId -> ((toSequenceNr, permanent))
 
   // --------------------------------------------------------------------------------------
   //  Journal reads
