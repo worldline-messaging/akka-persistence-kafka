@@ -66,7 +66,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
         highest > 0L) criteria.copy(maxSequenceNr = highest) else criteria
       // highest  <- Future.successful(Long.MaxValue)
       // adjusted = criteria
-      snapshot <- Future {
+      snapshot <- Future.successful {
         val topic = snapshotTopic(persistenceId)
         // if timestamp was unset on delete, matches only on same sequence nr
         def matcher(snapshot: KafkaSnapshot): Boolean = snapshot.matches(adjusted) &&

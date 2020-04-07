@@ -99,7 +99,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   // --------------------------------------------------------------------------------------
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] =
-    Future(readHighestSequenceNr(persistenceId, fromSequenceNr))
+    Future.successful(readHighestSequenceNr(persistenceId, fromSequenceNr))
 
   def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
@@ -108,7 +108,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)(replayCallback: PersistentRepr => Unit): Future[Unit] = {
     val deletions = this.deletions
-    Future(replayMessages(persistenceId, fromSequenceNr, toSequenceNr, max, deletions, replayCallback))
+    Future.successful(replayMessages(persistenceId, fromSequenceNr, toSequenceNr, max, deletions, replayCallback))
   }
 
   def replayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long, deletions: Deletions, callback: PersistentRepr => Unit): Unit = {
@@ -160,23 +160,11 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
     (recordMsgs,recordEvents)
   }
 
-  @tailrec
   private def writeBatchMessages(batches: Seq[(AtomicWrite,Promise[Unit])]): Unit = {
-    if(batches.nonEmpty) {
-      val size = batches.head._1.size
-      val (b1, b2) = if (size == 1) {
-        batches.span { case (aw, _) => aw.size == 1 }
-      } else {
-        (List(batches.head), batches.tail)
-      }
-
-      try {
-        sendBatches(b1)
-      } catch {
-        case t:Exception => log.error(t,"unable to send atomic batch")
-      }
-
-      writeBatchMessages(b2)
+    try {
+      sendBatches(batches)
+    } catch {
+      case t:Exception => log.error(t,"unable to send atomic batch")
     }
   }
 
