@@ -1,8 +1,9 @@
 package akka.persistence.kafka.snapshot
 
+import java.time
+
 import scala.concurrent.Future
 import scala.concurrent.duration._
-
 import akka.actor._
 import akka.pattern.ask
 import akka.persistence._
@@ -107,7 +108,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   private def snapshot(topic: String, offset: Long): KafkaSnapshot = {
-    val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, config.pollTimeOut)
+    val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, time.Duration.ofMillis(config.pollTimeOut))
     if(!iter.hasNext && offset>0)
       log.warning(s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)")
     try { serialization.deserialize(iter.next().value(), classOf[KafkaSnapshot]).get } finally { iter.close() }

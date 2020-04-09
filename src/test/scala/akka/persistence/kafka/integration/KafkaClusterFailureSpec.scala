@@ -1,5 +1,6 @@
 package akka.persistence.kafka.integration
 
+import java.time.Duration
 import java.util.{Properties, UUID}
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
@@ -128,7 +129,7 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
     readMessages(journalTopic, 0).map(m => serialization.deserialize(m.value(), classOf[PersistentRepr]).get)
 
   def readMessages(topic: String, partition: Int): Seq[ConsumerRecord[String, Array[Byte]]] =
-    new MessageIterator(journalConfig.txnAwareConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, journalConfig.pollTimeOut).toVector
+    new MessageIterator(journalConfig.txnAwareJournalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
 
   "A kafka journal" must {
     "properly manage all nodes shutdown on three node cluster" in {

@@ -1,6 +1,7 @@
 package akka.persistence.kafka.journal
 
 import java.io.NotSerializableException
+import java.time.Duration
 
 import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
@@ -12,6 +13,7 @@ import akka.actor._
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.errors.{OutOfOrderSequenceException, ProducerFencedException}
 
@@ -103,7 +105,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
-    Math.max(nextOffsetFor(config.txnAwareConsumerConfig, topic, config.partition)-1,0)
+    Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition)-1,0)
   }
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)(replayCallback: PersistentRepr => Unit): Future[Unit] = {
@@ -126,7 +128,8 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   }
 
   def persistentIterator(topic: String, offset: Long): Iterator[PersistentRepr] = {
-    new MessageIterator(config.txnAwareConsumerConfig, topic, config.partition, Math.max(offset,0), config.pollTimeOut) .map { m =>
+    new MessageIterator(config.txnAwareJournalConsumerConfig, topic, config.partition, Math.max(offset,0),
+      Duration.ofMillis(config.pollTimeOut)) .map { m =>
        serialization.deserialize(m.value(), classOf[PersistentRepr]).get
     }
   }

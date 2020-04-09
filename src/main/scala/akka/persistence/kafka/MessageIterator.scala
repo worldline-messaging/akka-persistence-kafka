@@ -1,11 +1,13 @@
 package akka.persistence.kafka
 
+import java.time.Duration
+
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 
 import scala.collection.JavaConverters._
 
-class MessageIterator(consumerConfig:Map[String,Object], topic: String, partition: Int, offset: Long, timeOut: Long) extends Iterator[ConsumerRecord[String, Array[Byte]]] {
+class MessageIterator(consumerConfig:Map[String,Object], topic: String, partition: Int, offset: Long, timeOut: Duration) extends Iterator[ConsumerRecord[String, Array[Byte]]] {
 
   val consumer = new KafkaConsumer[String, Array[Byte]](consumerConfig.asJava)
   var iter: Iterator[ConsumerRecord[String, Array[Byte]]] = iterator(offset)

@@ -14,12 +14,20 @@ class MetadataConsumerConfig(config: Config) {
     configToProperties(
       config.getConfig("consumer"),
       Map(
-        ConsumerConfig.GROUP_ID_CONFIG                 → "journal-snapshot-reader",
         ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringDeserializer",
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
       )
     ) - "poll-timeout"
 
-  lazy val txnAwareConsumerConfig: Map[String,Object] =
-    snapshotConsumerConfig ++ Map(ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed")
+  val journalConsumerConfig: Map[String, Object] =
+    configToProperties(
+      config.getConfig("consumer"),
+      Map(
+        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringDeserializer",
+        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+      )
+    ) - "poll-timeout"
+
+  lazy val txnAwareJournalConsumerConfig: Map[String,Object] =
+    journalConsumerConfig ++ Map(ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed")
 }

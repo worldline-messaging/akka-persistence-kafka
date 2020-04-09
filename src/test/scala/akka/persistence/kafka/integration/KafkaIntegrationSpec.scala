@@ -1,5 +1,6 @@
 package akka.persistence.kafka.integration
 
+import java.time.Duration
 import java.util.UUID
 
 import scala.collection.immutable.Seq
@@ -121,7 +122,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
     readMessages("events", partition).map(m => eventDecoder.fromBytes(m.value))
 
   def readMessages(topic: String, partition: Int): Seq[ConsumerRecord[String, Array[Byte]]] =
-    new MessageIterator(journalConfig.txnAwareConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, journalConfig.pollTimeOut).toVector
+    new MessageIterator(journalConfig.txnAwareJournalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
 
   "A Kafka journal" must {
     "publish all events to the events topic by default" in {
