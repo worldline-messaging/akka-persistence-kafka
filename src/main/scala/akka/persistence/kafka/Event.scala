@@ -1,8 +1,7 @@
 package akka.persistence.kafka
 
 import akka.actor.ActorSystem
-import akka.serialization.SerializationExtension
-
+import akka.serialization.{Serialization, SerializationExtension}
 import kafka.serializer._
 
 import scala.collection.immutable.Seq
@@ -38,7 +37,7 @@ class EmptyEventTopicMapper extends EventTopicMapper {
 }
 
 class EventDecoder(system: ActorSystem) extends Decoder[Event] {
-  val serialization = SerializationExtension(system)
+  val serialization: Serialization = SerializationExtension(system)
 
   def fromBytes(bytes: Array[Byte]): Event =
     serialization.deserialize(bytes, classOf[Event]).get

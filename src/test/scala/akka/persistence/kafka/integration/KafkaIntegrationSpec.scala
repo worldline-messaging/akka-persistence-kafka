@@ -5,14 +5,14 @@ import java.util.UUID
 
 import scala.collection.immutable.Seq
 import akka.actor._
-import akka.persistence.JournalProtocol.{WriteMessageSuccess, WriteMessages, WriteMessagesFailed, WriteMessagesSuccessful}
+import akka.persistence.JournalProtocol.{WriteMessages, WriteMessagesFailed}
 import akka.persistence._
 import akka.persistence.SnapshotProtocol._
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalConfig
 import akka.persistence.kafka.server._
 import akka.persistence.kafka.snapshot.KafkaSnapshotStoreConfig
-import akka.serialization.{SerializationExtension, Serializer}
+import akka.serialization.{Serialization, SerializationExtension, Serializer}
 import akka.testkit._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest._
@@ -82,10 +82,10 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
   val journalConfig = new KafkaJournalConfig(systemConfig.getConfig("kafka-journal"))
   val storeConfig = new KafkaSnapshotStoreConfig(systemConfig.getConfig("kafka-snapshot-store"))
 
-  val serialization = SerializationExtension(system)
+  val serialization: Serialization = SerializationExtension(system)
   val eventDecoder = new EventDecoder(system)
 
-  val persistence = Persistence(system)
+  val persistence: Persistence = Persistence(system)
   val journal: ActorRef = persistence.journalFor(null)
   val store: ActorRef = persistence.snapshotStoreFor(null)
 
@@ -127,7 +127,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
   "A Kafka journal" must {
     "publish all events to the events topic by default" in {
       val eventSeq = for {
-        partition <- 0 until (if(servers.nonEmpty) servers(0).configs.head.numPartitions else  1 )
+        partition <- 0 until (if(servers.nonEmpty) servers.head.configs.head.numPartitions else  1 )
         event <- readEvents(partition)
       } yield event
 

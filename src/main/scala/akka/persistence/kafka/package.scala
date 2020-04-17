@@ -24,7 +24,7 @@ package object kafka {
     val promise = Promise[Unit]()
     p.send(
       rec,
-      (metadata: RecordMetadata, exception: Exception) ⇒ {
+      (_: RecordMetadata, exception: Exception) ⇒ {
         if (exception == null) {
           promise.complete(Success())
           ()

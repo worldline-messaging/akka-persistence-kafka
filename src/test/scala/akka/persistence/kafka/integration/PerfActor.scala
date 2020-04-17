@@ -3,6 +3,7 @@ package akka.persistence.kafka.integration
 import java.util.concurrent.CountDownLatch
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
+import akka.dispatch.MessageDispatcher
 import akka.pattern.ask
 import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer}
 import akka.util.Timeout
@@ -64,7 +65,7 @@ class BenchCoherencePersistentActor(id:Int, messageStart:String, snapshotStart:S
         startRecov = System.currentTimeMillis()
       cptRecov = d
     case RecoveryCompleted => latch.countDown()
-      if(startRecov==0) timeRecov=0 else timeRecov = System.currentTimeMillis()-startRecov;
+      if(startRecov==0) timeRecov=0 else timeRecov = System.currentTimeMillis()-startRecov
       lastValueRecov = cptRecov
       println(s"RECOVERED $persistenceId [$firstValueRecov:$lastValueRecov:$numRecov:$cptRecov:$timeRecov]")
     case msg:String =>
@@ -72,7 +73,7 @@ class BenchCoherencePersistentActor(id:Int, messageStart:String, snapshotStart:S
       numRecov = numRecov + 1
       val newValue = msg.toLong
       if(firstValueRecov == 0L) firstValueRecov = newValue
-      if(newValue-cptRecov != 1) throw new IllegalStateException(s"$persistenceId with $newValue-$cptRecov = ${newValue-cptRecov} for $numRecov");
+      if(newValue-cptRecov != 1) throw new IllegalStateException(s"$persistenceId with $newValue-$cptRecov = ${newValue-cptRecov} for $numRecov")
       cptRecov = newValue
   }
 
@@ -134,9 +135,9 @@ object PerfActor extends App  {
   val latch = new CountDownLatch(na)
 
   val startMsg = List.fill(ml)('0').mkString// s"%0${messageLength}d".format(cpt)
-  println(startMsg.size)
+  println(startMsg.length)
   val startSnpsht = List.fill(sl)('0').mkString//s"%0${snapshotLength}d".format(cpt)
-  println(startSnpsht.size)
+  println(startSnpsht.length)
 
   val system = ActorSystem("test-magic-system",Some(configApp))
 
@@ -144,7 +145,7 @@ object PerfActor extends App  {
 
   var actors = Vector.tabulate(na)(id => system.actorOf(props(id,startMsg,startSnpsht,gounter,latch,si)))
 
-  implicit val executionContext = system.dispatchers.lookup("my-dispatcher")
+  implicit val executionContext: MessageDispatcher = system.dispatchers.lookup("my-dispatcher")
 
   var actorWtrites = Map.empty[Int,Long].withDefaultValue(0L)
 
@@ -160,11 +161,11 @@ object PerfActor extends App  {
     if(i%ti==0) Thread.sleep(1000)
   }
 
-  implicit val timeout = Timeout(5 seconds)
+  implicit val timeout: Timeout = Timeout(5 seconds)
 
   var cpt = 0L
   do {
-    cpt =  Await.result(gounter ask(Get),5 seconds).asInstanceOf[Long]
+    cpt =  Await.result(gounter ask Get,5 seconds).asInstanceOf[Long]
     if(cpt < nm)
       Thread.sleep(5000)
     print(cpt+" ")

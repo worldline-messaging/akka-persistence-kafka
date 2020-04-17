@@ -9,7 +9,7 @@ import akka.pattern.ask
 import akka.persistence._
 import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.kafka._
-import akka.serialization.SerializationExtension
+import akka.serialization.{Serialization, SerializationExtension}
 import akka.util.Timeout
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -19,12 +19,12 @@ import scala.collection.JavaConverters._
 class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorLogging {
   import context.dispatcher
 
-  val extension = Persistence(context.system)
+  val extension: Persistence = Persistence(context.system)
 
   type RangeDeletions = Map[String, SnapshotSelectionCriteria]
   type SingleDeletions = Map[String, List[SnapshotMetadata]]
 
-  val serialization = SerializationExtension(context.system)
+  val serialization: Serialization = SerializationExtension(context.system)
   val config = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
 
   val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)

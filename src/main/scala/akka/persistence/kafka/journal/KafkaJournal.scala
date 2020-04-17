@@ -13,11 +13,9 @@ import akka.actor._
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
-import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.errors.{OutOfOrderSequenceException, ProducerFencedException}
 
-import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite,Promise[Unit])])
@@ -28,7 +26,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   type Deletions = Map[String, (Long, Boolean)]
 
-  val serialization = SerializationExtension(context.system)
+  val serialization: Serialization = SerializationExtension(context.system)
   val config = new KafkaJournalConfig(context.system.settings.config.getConfig("kafka-journal"))
 
   val journalPath: String = akka.serialization.Serialization.serializedActorPath(self)
@@ -72,7 +70,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     val f = Future.sequence(msgsWithPromises.map{ case (_, p) => p.future.map(Success(_)).recover{ case e => Failure(e)}})
     f.flatMap { results =>
       val fatals = results.filter{_.isFailure}.filter {_.failed.get match {
-        case fwe:FatalWriterException => true
+        case _:FatalWriterException => true
         case _ => false
       }}
       if(fatals.nonEmpty) {
@@ -105,7 +103,11 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
-    Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition)-1,0)
+    val highestSequenceNr = Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition)-1,0)
+    if(highestSequenceNr < fromSequenceNr) {
+      throw new IllegalStateException(s"Invalid highest offset: $highestSequenceNr < $fromSequenceNr")
+    }
+    highestSequenceNr
   }
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)(replayCallback: PersistentRepr => Unit): Future[Unit] = {

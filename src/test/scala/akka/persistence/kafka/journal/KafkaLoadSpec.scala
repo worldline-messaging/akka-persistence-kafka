@@ -78,7 +78,7 @@ class KafkaLoadSpec extends TestKit(ActorSystem("test", KafkaLoadSpec.config)) w
       val warmCycles = 10L  // set to 10000L to get reasonable results
       val loadCycles = 100L // set to 300000L to get reasonable results
 
-      val processor1 = system.actorOf(Props(classOf[TestPersistentActor], "test"))
+      val processor1 = system.actorOf(Props(new TestPersistentActor("test-throughput-actor")), "test")
       1L to warmCycles foreach { _ => processor1 ! "a" }
       processor1 ! "start"
       expectMsg("started")

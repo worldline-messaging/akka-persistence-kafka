@@ -9,7 +9,7 @@ import akka.persistence.kafka.integration.KafkaIntegrationSpec.TestPersistentAct
 import akka.persistence.kafka.journal.KafkaJournalConfig
 import akka.persistence.{AtomicWrite, Persistence, PersistentRepr}
 import akka.persistence.kafka.{EventDecoder, MessageIterator}
-import akka.serialization.SerializationExtension
+import akka.serialization.{Serialization, SerializationExtension}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.server.{KafkaConfig, KafkaServer}
@@ -81,15 +81,15 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
   import KafkaClusterFailureSpec._
 
   val systemConfig: Config = system.settings.config
-  val configApp = config.withFallback(systemConfig)
+  val configApp: Config = config.withFallback(systemConfig)
   val journalConfig = new KafkaJournalConfig(systemConfig.getConfig("kafka-journal"))
 
-  val serialization = SerializationExtension(system)
+  val serialization: Serialization = SerializationExtension(system)
   val eventDecoder = new EventDecoder(system)
 
   val kafkaServerTest = new KafkaServerTest
 
-  val serverConfig = configApp.getConfigList("test-server.instances").asScala.head
+  val serverConfig: Config = configApp.getConfigList("test-server.instances").asScala.head
   val serverProps = new Properties()
   serverConfig.entrySet.asScala.foreach { entry ⇒
     val invalids = List("broker.id","port","log.dirs")
@@ -103,7 +103,7 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
   serverProps.put("offsets.topic.replication.factor","3")
   var servers:Seq[KafkaServer] = List.empty
 
-  val persistence = Persistence(system)
+  val persistence: Persistence = Persistence(system)
   val journal: ActorRef = persistence.journalFor(null)
   val store: ActorRef = persistence.snapshotStoreFor(null)
 
@@ -140,9 +140,9 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
       writeJournal(Seq("a", "b", "c"), actor)
       servers.foreach(_.shutdown())
 
-      val probe = TestProbe()
+      val probe: TestProbe = TestProbe()
 
-      val msgs = (1 to 10).map { i ⇒
+      val msgs = (1 to 10).map { _ ⇒
         PersistentRepr(payload = "1", sequenceNr = 3, persistenceId = persistenceId, sender = Actor.noSender,
           writerUuid = writerUuid)
       }
@@ -165,12 +165,11 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
     "properly manage one node shutdown on three node cluster" in {
       val persistenceId = "pshutdown2"
       val actor = system.actorOf(Props(new TestPersistentActor(persistenceId, testActor)))
-      val writerUuid = UUID.randomUUID.toString
 
       writeJournal(Seq("a", "b", "c"), actor)
       readJournal(persistenceId).map(_.payload) should be(Seq("a", "b", "c"))
 
-      val leader = servers.filter(TestUtils.isLeaderLocalOnBroker(persistenceId,0,_)).headOption
+      val leader = servers.find(TestUtils.isLeaderLocalOnBroker(persistenceId, 0, _))
 
       leader.isDefined shouldBe true
 
