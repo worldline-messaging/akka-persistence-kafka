@@ -16,8 +16,6 @@ object KafkaLoadSpec {
       |akka.test.single-expect-default = 20s
       |kafka-journal.event.producer.request.required.acks = 1
       |kafka-journal.event.producer.topic.mapper.class = "akka.persistence.kafka.EmptyEventTopicMapper"
-      |kafka-journal.zookeeper.connection.timeout.ms = 10000
-      |kafka-journal.zookeeper.session.timeout.ms = 10000
     """.stripMargin)
 
   trait Measure extends { this: Actor ⇒
