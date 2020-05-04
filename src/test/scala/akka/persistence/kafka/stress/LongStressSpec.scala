@@ -81,7 +81,7 @@ class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
   optional(flag = supportsLongStressTest) {
     val msBetweenSnapshot = 1000
     val msBetweenRestart = 1000
-    val numberOfMessages = 1000000
+    val numberOfMessages = 100000
     val perThousandRestart = 5
     "Kafka journal" should {
       val numOfCounters =  5
@@ -98,7 +98,7 @@ class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
         var countersLastSnapshot = (1 to numOfCounters).map { i =>
           (i,System.currentTimeMillis())
         }.toMap
-        (0L until 100000L).foreach { i =>
+        (0L until numberOfMessages).foreach { i =>
           val counterId = Random.nextInt(numOfCounters)+1
           val counterVal = countersVal(counterId)
           val counterActor = counters(counterId)

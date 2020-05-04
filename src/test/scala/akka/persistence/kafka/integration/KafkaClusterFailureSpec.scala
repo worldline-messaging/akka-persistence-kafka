@@ -19,6 +19,7 @@ import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.apache.kafka.common.errors.TimeoutException
 import org.junit.Test
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.Assertions.intercept
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
