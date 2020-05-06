@@ -161,11 +161,11 @@ object PerfActor extends App  {
     if(i%ti==0) Thread.sleep(1000)
   }
 
-  implicit val timeout: Timeout = Timeout(5 seconds)
+  implicit val timeout: Timeout = Timeout(5.seconds)
 
   var cpt = 0L
   do {
-    cpt =  Await.result(gounter ask Get,5 seconds).asInstanceOf[Long]
+    cpt =  Await.result(gounter ask Get,5.seconds).asInstanceOf[Long]
     if(cpt < nm)
       Thread.sleep(5000)
     print(cpt+" ")
@@ -176,7 +176,7 @@ object PerfActor extends App  {
 
   println("Compute results")
   (0 until na).foreach { id =>
-    val response = Await.result(actors(id) ask Compute, 5 seconds)
+    val response = Await.result(actors(id) ask Compute, 5.seconds)
     println(s"Actor $id. $response.")
   }
 
