@@ -6,7 +6,7 @@ version := "0.9.5"
 
 scalaVersion := "2.13.2"
 
-crossScalaVersions := Seq("2.13.2")
+crossScalaVersions := Seq("2.12.8", "2.13.2")
 
 resolvers += "worldline-messaging at bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
 
