@@ -84,7 +84,7 @@ class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
     val numberOfMessages = 100000
     val perThousandRestart = 5
     "Kafka journal" should {
-      val numOfCounters =  5
+      val numOfCounters =  1
       s"accept $numberOfMessages and recover work with $numOfCounters actor(s) with random poison pill and restart" in {
         var countersVal = (1 to numOfCounters).map { i =>
           (i,0L)

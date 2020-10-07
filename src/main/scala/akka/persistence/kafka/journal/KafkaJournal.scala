@@ -122,16 +122,17 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     val adjustedNum = toSequenceNr - adjustedFrom + 1L
     val adjustedTo = if (max < adjustedNum) adjustedFrom + max - 1L else toSequenceNr
 
+    println(s"$persistenceId replays from $fromSequenceNr/$adjustedFrom to $toSequenceNr/$adjustedTo for $adjustedNum (deletions = $deletions)")
     val iter = persistentIterator(journalTopic(persistenceId), adjustedFrom - 1L)
-    iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foldLeft(adjustedFrom) {
-      case (_, p) => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p); p.sequenceNr
+    iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foreach {
+      p => callback(p)
     }
-
   }
 
   def persistentIterator(topic: String, offset: Long): Iterator[PersistentRepr] = {
     new MessageIterator(config.txnAwareJournalConsumerConfig, topic, config.partition, Math.max(offset,0),
       Duration.ofMillis(config.pollTimeOut)) .map { m =>
+       println(s"Iterate on $topic at offset ${m.offset()}")
        serialization.deserialize(m.value(), classOf[PersistentRepr]).get
     }
   }
