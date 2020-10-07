@@ -125,7 +125,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     println(s"$persistenceId replays from $fromSequenceNr/$adjustedFrom to $toSequenceNr/$adjustedTo for $adjustedNum (deletions = $deletions)")
     val iter = persistentIterator(journalTopic(persistenceId), adjustedFrom - 1L)
     iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foreach {
-      p => callback(p)
+      p => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p)
     }
   }
 

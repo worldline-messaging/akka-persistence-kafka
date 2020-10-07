@@ -128,8 +128,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
     highestJournalSequenceNr(metadata.persistenceId).flatMap { highest =>
-      if(metadata.sequenceNr!=highest) println(s"****************** C O N F I R M A T I O N ${metadata.sequenceNr}!=$highest ******************")
-      val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata.copy(sequenceNr = highest), snapshot)).get
+      val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, highest, snapshot)).get
       val snapshotMessage = new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
 
       // TODO: take a producer from a pool ?
@@ -156,7 +155,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
           !singleDeletions(persistenceId).contains(snapshot.metadata) &&
           !singleDeletions(persistenceId).filter(_.timestamp == 0L).map(_.sequenceNr).contains(snapshot.metadata.sequenceNr)
 
-        load(topic, matcher).map(s => SelectedSnapshot(s.metadata, s.snapshot))
+        load(topic, matcher).map(s => SelectedSnapshot(s.metadata.copy(sequenceNr = s.kafkaOffset), s.snapshot))
       }
     } yield snapshot
   }

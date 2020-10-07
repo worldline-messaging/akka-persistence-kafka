@@ -1,6 +1,7 @@
 package akka.persistence.kafka.snapshot
 
 import java.io._
+import java.nio.ByteBuffer
 
 import akka.actor._
 import akka.persistence._
@@ -8,7 +9,7 @@ import akka.persistence.kafka.snapshot.SnapshotFormats.SnapshotMetadataFormat
 import akka.persistence.serialization.Snapshot
 import akka.serialization._
 
-case class KafkaSnapshot(metadata: SnapshotMetadata, snapshot: Any) {
+case class KafkaSnapshot(metadata: SnapshotMetadata, kafkaOffset:Long, snapshot: Any) {
   def matches(criteria: SnapshotSelectionCriteria): Boolean =
     metadata.sequenceNr <= criteria.maxSequenceNr &&
       metadata.timestamp <= criteria.maxTimestamp
@@ -34,6 +35,7 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
     val out = new ByteArrayOutputStream
 
     writeInt(out, metadataBytes.length)
+    writeLong(out, ks.kafkaOffset)
     out.write(metadataBytes)
     out.write(snapshotBytes)
     out.toByteArray
@@ -42,13 +44,14 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
   def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): KafkaSnapshot = {
     val extension = SerializationExtension(system)
     val metadataLength = readInt(new ByteArrayInputStream(bytes))
-    val metadataBytes = bytes.slice(4, metadataLength + 4)
-    val snapshotBytes = bytes.drop(metadataLength + 4)
+    val kafkaOffset = readLong(new ByteArrayInputStream(bytes.slice(4, metadataLength + 4)))
+    val metadataBytes = bytes.slice(12, metadataLength + 12)
+    val snapshotBytes = bytes.drop(metadataLength + 12)
 
     val metadata = snapshotMetadataFromBinary(metadataBytes)
     val snapshot = extension.deserialize(snapshotBytes, classOf[Snapshot]).get
 
-    KafkaSnapshot(metadata, snapshot.data)
+    KafkaSnapshot(metadata, kafkaOffset, snapshot.data)
   }
 
   def snapshotMetadataToBinary(metadata: SnapshotMetadata): Array[Byte] = {
@@ -73,4 +76,19 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
 
   private def readInt(inputStream: InputStream) =
     (0 to 24 by 8).foldLeft(0) { (id, shift) ⇒ id | (inputStream.read() << shift) }
+
+  private def writeLong(outputStream: OutputStream, l: Long): Unit = {
+    val buffer = ByteBuffer.allocate(8)
+    buffer.putLong(l)
+    outputStream.write(buffer.array())
+  }
+
+  private def readLong(inputStream: InputStream):Long = {
+    val bytes = new Array[Byte](8)
+    val buffer = ByteBuffer.allocate(8)
+    inputStream.read(bytes,0,8)
+    buffer.put(bytes)
+    buffer.flip()
+    buffer.getLong
+  }
 }
