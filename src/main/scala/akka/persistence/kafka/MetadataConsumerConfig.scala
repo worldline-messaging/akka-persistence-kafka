@@ -27,7 +27,4 @@ class MetadataConsumerConfig(config: Config) {
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
       )
     ) - "poll-timeout"
-
-  lazy val txnAwareJournalConsumerConfig: Map[String,Object] =
-    journalConsumerConfig ++ Map(ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed")
 }

@@ -122,7 +122,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
     readMessages("events", partition).map(m => eventDecoder.fromBytes(m.value))
 
   def readMessages(topic: String, partition: Int): Seq[ConsumerRecord[String, Array[Byte]]] =
-    new MessageIterator(journalConfig.txnAwareJournalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
+    new MessageIterator(journalConfig.journalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
 
   "A Kafka journal" must {
     "publish all events to the events topic by default" in {
@@ -161,8 +161,8 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
 
       probe.expectMsgPF() {
         case wmf:WriteMessagesFailed =>
-          wmf.cause.isInstanceOf[IllegalStateException] shouldBe true
-          wmf.cause.getMessage shouldBe "Unable to serialize. It's a bad event"
+          wmf.cause.isInstanceOf[UnsupportedOperationException] shouldBe true
+          wmf.cause.getMessage shouldBe "persistAll cannot be used with akka peristence kafka"
       }
     }
   }

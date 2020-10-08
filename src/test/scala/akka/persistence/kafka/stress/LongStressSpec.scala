@@ -23,14 +23,13 @@ class CounterActor(id: String) extends PersistentActor {
   override def persistenceId: String = id
 
   override def receiveCommand: Receive = {
-    case IncrementRequest(inc,snapshot) => persistAsync(inc.toString) { evt =>
-      counter = counter + evt.toLong
+    case IncrementRequest(inc,snapshot) => persistAsync(inc) { evt =>
+      counter = counter + evt
       if(snapshot) {
         println(s"$id takes snapshot at $counter")
         saveSnapshot(counter)
-      } else {
-        println(s"$id sets value at $counter")
       }
+      println(s"$id sets value at $counter")
       sender() ! IncrementResponse(id, counter)
     }
     case CounterRequest => sender() ! CounterResponse(id, counter)
@@ -38,8 +37,8 @@ class CounterActor(id: String) extends PersistentActor {
 
   override def receiveRecover: Receive = {
     case SnapshotOffer(_, snapshot: Long) ⇒ counter = snapshot; println(s"$id recovers snapshot: $counter")
-    case inc: String ⇒ {
-      counter = counter + inc.toLong
+    case inc: Long ⇒ {
+      counter = counter + inc
       println(s"$id recovers at $counter")
     }
     case RecoveryCompleted ⇒ println(s"$id recovers with: $counter")
@@ -84,7 +83,7 @@ class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
     val numberOfMessages = 100000
     val perThousandRestart = 5
     "Kafka journal" should {
-      val numOfCounters =  5
+      val numOfCounters =  1
       s"accept $numberOfMessages and recover work with $numOfCounters actor(s) with random poison pill and restart" in {
         var countersVal = (1 to numOfCounters).map { i =>
           (i,0L)

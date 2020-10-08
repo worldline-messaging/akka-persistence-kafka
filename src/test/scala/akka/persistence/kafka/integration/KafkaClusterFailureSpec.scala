@@ -68,6 +68,7 @@ object KafkaClusterFailureSpec {
       |kafka-journal.event.producer.topic.mapper.class = "akka.persistence.kafka.EmptyEventTopicMapper"
       |
       |kafka-journal.producer.retries = 5
+      |kafka-journal.producer.max.in.flight.requests.per.connection = 1
       |kafka-journal.producer.delivery.timeout.ms = 2000
       |kafka-journal.producer.request.timeout.ms = 1000
       |
@@ -130,7 +131,7 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
     readMessages(journalTopic, 0).map(m => serialization.deserialize(m.value(), classOf[PersistentRepr]).get)
 
   def readMessages(topic: String, partition: Int): Seq[ConsumerRecord[String, Array[Byte]]] =
-    new MessageIterator(journalConfig.txnAwareJournalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
+    new MessageIterator(journalConfig.journalConsumerConfig++Map(ConsumerConfig.GROUP_ID_CONFIG -> "journal-test-reader"), topic, partition, 0, Duration.ofMillis(journalConfig.pollTimeOut)).toVector
 
   "A kafka journal" must {
     "properly manage all nodes shutdown on three node cluster" in {
@@ -154,8 +155,8 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
 
       probe.expectMsgPF() {
         case wmf:WriteMessagesFailed =>
-          wmf.cause.isInstanceOf[TimeoutException] shouldBe true
-          wmf.cause.getMessage.startsWith("Expiring 10 record(s) for pshutdown") shouldBe true
+          wmf.cause.isInstanceOf[UnsupportedOperationException] shouldBe true
+          wmf.cause.getMessage.startsWith("persistAll cannot be used with akka peristence kafka") shouldBe true
       }
 
       readJournal(persistenceId).map(_.payload) should be(Seq("a", "b", "c"))

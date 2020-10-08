@@ -103,7 +103,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
-    val highestSequenceNr = Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition)-1,0)
+    val highestSequenceNr = Math.max(nextOffsetFor(config.journalConsumerConfig, topic, config.partition),0)
     if(highestSequenceNr < fromSequenceNr) {
       throw new IllegalStateException(s"Invalid highest offset: $highestSequenceNr < $fromSequenceNr")
     }
@@ -130,7 +130,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
   }
 
   def persistentIterator(topic: String, offset: Long): Iterator[PersistentRepr] = {
-    new MessageIterator(config.txnAwareJournalConsumerConfig, topic, config.partition, Math.max(offset,0),
+    new MessageIterator(config.journalConsumerConfig, topic, config.partition, Math.max(offset,0),
       Duration.ofMillis(config.pollTimeOut)) .map { m =>
        serialization.deserialize(m.value(), classOf[PersistentRepr]).get
     }
@@ -140,8 +140,8 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 private class FatalWriterException(exception:Throwable) extends Throwable(exception)
 
 private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJournalConfig,serialization:Serialization) extends Actor with ActorLogging {
-  var msgProducer: KafkaProducer[String, Array[Byte]] = createMessageProducer(journalPath,index)
-  var evtProducer: KafkaProducer[String, Array[Byte]] = createEventProducer(journalPath,index)
+  var msgProducer: KafkaProducer[String, Array[Byte]] = createMessageProducer()
+  var evtProducer: KafkaProducer[String, Array[Byte]] = createEventProducer()
 
   def receive: PartialFunction[Any, Unit] = {
     case messages: SeqOfAtomicWritesPromises =>
@@ -174,14 +174,13 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
   }
 
   def sendBatches(bs:Seq[(AtomicWrite,Promise[Unit])]): Unit = {
-    var evtTrnBegin = false
 
-    var abortException:Option[Throwable] = None
-
-    msgProducer.beginTransaction()
-    val results = bs.map { case (batch, p) =>
-      try {
-        if(abortException.isEmpty) { //An error occurs in this batch. We should not continue to send to kafka
+    bs.map { case (batch, p) =>
+      if(batch.payload.size > 1) {
+        (Failure(new FatalWriterException(
+          new UnsupportedOperationException("persistAll cannot be used with akka peristence kafka"))),p)
+      } else {
+        try {
           val (recordMsgs, recordEvents) = buildRecords(batch.payload)
 
           recordMsgs.foreach { recordMsg =>
@@ -189,63 +188,19 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
           }
 
           if (recordEvents.nonEmpty) {
-            if (!evtTrnBegin) {
-              evtProducer.beginTransaction()
-              evtTrnBegin = true
-            }
             recordEvents.foreach { recordEvent =>
               sendFuture(evtProducer, recordEvent)
             }
           }
-          (Success(),p)
-        } else {
-          abortException.fold[(Try[Unit],Promise[Unit])] {
-            (Success(),p)
-          } { exc =>
-            (Failure(exc),p)
-          }
-        }
-      } catch {
-        case pfe: ProducerFencedException => log.error(pfe, "An error occurs") //Should occur only once
-          rebuildProducers()
-          if(abortException.isEmpty) abortException = Some(pfe)
-          (Failure(new FatalWriterException(pfe)),p)
-        case ooose: OutOfOrderSequenceException => log.error(ooose, "An error occurs")
-          rebuildProducers()
-          if(abortException.isEmpty) abortException = Some(ooose)
-          (Failure(new FatalWriterException(ooose)),p)
-        case nse:NotSerializableException => log.error(nse, "An error occurs")
-          (Failure(nse),p)
-        case e: Exception => log.error(e, "An error occurs")
-          if(abortException.isEmpty) abortException = Some(e)
-          (Failure(new FatalWriterException(e)),p)
-      }
-    }
-
-    try {
-      if (abortException.isEmpty) {
-        msgProducer.commitTransaction()
-        if (evtTrnBegin) {
-          evtProducer.commitTransaction()
-        }
-      } else {
-        msgProducer.abortTransaction()
-        if (evtTrnBegin) {
-          evtProducer.abortTransaction()
+          (Success(), p)
+        } catch {
+          case nse: NotSerializableException => log.error(nse, "An error occurs")
+            (Failure(nse), p)
+          case e: Exception => log.error(e, "An error occurs")
+            (Failure(new FatalWriterException(e)), p)
         }
       }
-      results.foreach {case (r,p) => p.complete(r)}
-    } catch {
-      case e:Exception =>
-        if(abortException.isEmpty) {
-          log.error(e, "Unable to commit the transaction")
-        } else {
-          log.error(e, "Unable to abort the transaction")
-        }
-        rebuildProducers() //We have to rebuild the producers since an error on commit or abort lets the producer in error state.
-        val exception = abortException.getOrElse(e)
-        results.foreach {case (_,p) => p.failure(new FatalWriterException(exception))}
-    }
+    }.foreach {case (r,p) => p.complete(r)}
   }
 
   override def postStop(): Unit = {
@@ -258,21 +213,19 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
     msgProducer.close()
     evtProducer.close()
     //Recreate for the next batch
-    msgProducer = createMessageProducer(journalPath,index)
-    evtProducer = createEventProducer(journalPath,index)
+    msgProducer = createMessageProducer()
+    evtProducer = createEventProducer()
   }
 
-  private def createMessageProducer(journalPath:String, index:Int) = {
-    val conf = config.journalProducerConfig() ++ Map(ProducerConfig.TRANSACTIONAL_ID_CONFIG -> s"akka-journal-messages-$journalPath-$index")
+  private def createMessageProducer() = {
+    val conf = config.journalProducerConfig()
     val p = new KafkaProducer[String, Array[Byte]](conf.asJava)
-    p.initTransactions()
     p
   }
 
-  private def createEventProducer(journalPath:String, index:Int) = {
-    val conf = config.eventProducerConfig() ++ Map(ProducerConfig.TRANSACTIONAL_ID_CONFIG -> s"akka-journal-events-$journalPath-$index")
+  private def createEventProducer() = {
+    val conf = config.eventProducerConfig()
     val p = new KafkaProducer[String, Array[Byte]](conf.asJava)
-    p.initTransactions()
     p
   }
 }
