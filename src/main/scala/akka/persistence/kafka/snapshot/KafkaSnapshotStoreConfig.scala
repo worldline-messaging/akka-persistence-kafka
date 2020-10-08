@@ -5,7 +5,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.clients.producer.ProducerConfig
 
 class KafkaSnapshotStoreConfig(config: Config) extends MetadataConsumerConfig(config) {
-  val prefix: String =
+  val prefixSnapshot: String =
     config.getString("prefix")
 
   val ignoreOrphan: Boolean =

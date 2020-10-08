@@ -24,13 +24,12 @@ class CounterActor(id: String) extends PersistentActor {
 
   override def receiveCommand: Receive = {
     case IncrementRequest(inc,snapshot) => persistAsync(inc.toString) { evt =>
-      counter = counter + evt.toLong
       if(snapshot) {
         println(s"$id takes snapshot at $counter")
         saveSnapshot(counter)
-      } else {
-        println(s"$id sets value at $counter")
       }
+      counter = counter + evt.toLong
+      println(s"$id sets value at $counter")
       sender() ! IncrementResponse(id, counter)
     }
     case CounterRequest => sender() ! CounterResponse(id, counter)
@@ -72,7 +71,7 @@ class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
     super.afterAll()
   }
 
-  def supportsLongStressTest: CapabilityFlag = CapabilityFlag.off()
+  def supportsLongStressTest: CapabilityFlag = CapabilityFlag.on()
 
   if(!supportsLongStressTest.value) {
     info("**** CapabilityFlag `supportsLongStressTest` was turned `off`. For a valid and complete test, enable the LONG STRESS TEST ****")

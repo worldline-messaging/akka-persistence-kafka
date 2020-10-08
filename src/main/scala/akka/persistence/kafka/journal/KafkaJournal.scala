@@ -13,10 +13,12 @@ import akka.actor._
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.kafka._
 import akka.persistence.kafka.journal.KafkaJournalProtocol._
+import akka.persistence.kafka.snapshot.KafkaSequenceOffset
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.errors.{OutOfOrderSequenceException, ProducerFencedException}
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite,Promise[Unit])])
 private case object CloseWriter
@@ -103,7 +105,7 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
 
   def readHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Long = {
     val topic = journalTopic(persistenceId)
-    val highestSequenceNr = Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition)-1,0)
+    val highestSequenceNr = Math.max(nextOffsetFor(config.txnAwareJournalConsumerConfig, topic, config.partition),0)
     if(highestSequenceNr < fromSequenceNr) {
       throw new IllegalStateException(s"Invalid highest offset: $highestSequenceNr < $fromSequenceNr")
     }
@@ -115,6 +117,26 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     Future.successful(replayMessages(persistenceId, fromSequenceNr, toSequenceNr, max, deletions, replayCallback))
   }
 
+  private def sequenceOffset(topic: String, offset: Long): KafkaSequenceOffset = {
+    val iter = new MessageIterator(config.snapshotConsumerConfig, topic, config.partition, offset, Duration.ofMillis(config.pollTimeOut))
+    if(!iter.hasNext && offset>0)
+      log.warning(s"Strange: Offset is not 0 ($offset), But iterator is empty. Perhaps you should increase the poll-timeout parameter (${config.pollTimeOut} ms)")
+    try { serialization.deserialize(iter.next().value(), classOf[KafkaSequenceOffset]).get } finally { iter.close() }
+  }
+
+  private def loadKafkaOffset(topic: String, sequenceNr:Long): Option[Long] = {
+    val offset = nextOffsetFor(config.snapshotConsumerConfig, topic, config.partition)
+
+    @annotation.tailrec
+    def load(topic: String, offset: Long): Option[Long] =
+      if (offset < 0) None else {
+        val so = sequenceOffset(topic, offset)
+        if (so.sequenceNr==sequenceNr) Some(so.kafkaOffset) else load(topic, offset - 1)
+      }
+
+    load(topic, offset - 1)
+  }
+
   def replayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long, deletions: Deletions, callback: PersistentRepr => Unit): Unit = {
     val (deletedTo, permanent) = deletions.getOrElse(persistenceId, (0L, false))
 
@@ -122,10 +144,12 @@ class KafkaJournal extends AsyncWriteJournal with MetadataConsumer with ActorLog
     val adjustedNum = toSequenceNr - adjustedFrom + 1L
     val adjustedTo = if (max < adjustedNum) adjustedFrom + max - 1L else toSequenceNr
 
-    println(s"$persistenceId replays from $fromSequenceNr/$adjustedFrom to $toSequenceNr/$adjustedTo for $adjustedNum (deletions = $deletions)")
-    val iter = persistentIterator(journalTopic(persistenceId), adjustedFrom - 1L)
-    iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foreach {
-      p => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p)
+    loadKafkaOffset(sequenceTopic(persistenceId),adjustedFrom - 1).orElse(Some(1L)).foreach { ko => //1L = No snapshot, but is it a good idea?
+      println(s"$persistenceId replays from $fromSequenceNr/$adjustedFrom($ko) to $toSequenceNr/$adjustedTo for $adjustedNum (deletions = $deletions)")
+      val iter = persistentIterator(journalTopic(persistenceId), ko - 1L)
+      iter.map(p => if (!permanent && p.sequenceNr <= deletedTo) p.update(deleted = true) else p).foreach {
+        p => if (p.sequenceNr >= adjustedFrom && p.sequenceNr <= adjustedTo) callback(p)
+      }
     }
   }
 
@@ -152,16 +176,18 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
       evtProducer.close()
   }
 
+  case class ProducerRecordSNR(snr:Long,producerRecord: ProducerRecord[String,Array[Byte]])
+
   private def buildRecords(messages: Seq[PersistentRepr]) = {
     val recordMsgs = for {
       m <- messages
-    } yield new ProducerRecord[String, Array[Byte]](journalTopic(m.persistenceId), "static", serialization.serialize(m).get)
+    } yield ProducerRecordSNR(m.sequenceNr, new ProducerRecord[String, Array[Byte]](journalTopic(m.persistenceId), "static", serialization.serialize(m).get))
 
     val recordEvents = for {
       m <- messages
       e = Event(m.persistenceId, m.sequenceNr, m.payload)
       t <- config.eventTopicMapper.topicsFor(e)
-    } yield new ProducerRecord(t, e.persistenceId, serialization.serialize(e).get)
+    } yield ProducerRecordSNR(e.sequenceNr, new ProducerRecord(t, e.persistenceId, serialization.serialize(e).get))
 
     (recordMsgs,recordEvents)
   }
@@ -186,7 +212,7 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
           val (recordMsgs, recordEvents) = buildRecords(batch.payload)
 
           recordMsgs.foreach { recordMsg =>
-            sendFuture(msgProducer, recordMsg)
+            sendFuture(msgProducer, recordMsg.producerRecord).map{rm => println(s"Writing to ${rm.topic()} with snr ${recordMsg.snr} at offset ${rm.offset()} OK")}
           }
 
           if (recordEvents.nonEmpty) {
@@ -195,7 +221,7 @@ private class KafkaJournalWriter(journalPath:String, index:Int,config: KafkaJour
               evtTrnBegin = true
             }
             recordEvents.foreach { recordEvent =>
-              sendFuture(evtProducer, recordEvent)
+              sendFuture(evtProducer, recordEvent.producerRecord)
             }
           }
           (Success(),p)

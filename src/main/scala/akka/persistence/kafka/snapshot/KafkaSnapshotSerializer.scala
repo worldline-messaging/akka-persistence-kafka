@@ -9,7 +9,50 @@ import akka.persistence.kafka.snapshot.SnapshotFormats.SnapshotMetadataFormat
 import akka.persistence.serialization.Snapshot
 import akka.serialization._
 
-case class KafkaSnapshot(metadata: SnapshotMetadata, kafkaOffset:Long, snapshot: Any) {
+case class KafkaSequenceOffset(sequenceNr:Long, kafkaOffset:Long)
+
+class KafkaSequenceOffsetSerializer(system: ExtendedActorSystem) extends Serializer {
+  def identifier: Int = 15441
+  def includeManifest: Boolean = false
+
+  def toBinary(o: AnyRef): Array[Byte] = o match {
+    case kso: KafkaSequenceOffset => sequenceOffsetToBinary(kso)
+    case _                 => throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
+  }
+
+  def sequenceOffsetToBinary(ks: KafkaSequenceOffset): Array[Byte] = {
+    val out = new ByteArrayOutputStream
+
+    writeLong(out, ks.sequenceNr)
+    writeLong(out, ks.kafkaOffset)
+    out.toByteArray
+  }
+
+  def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): KafkaSequenceOffset = {
+    val in = new ByteArrayInputStream(bytes)
+
+    val sequenceNr = readLong(in)
+    val kafkaOffset = readLong(in)
+    KafkaSequenceOffset(sequenceNr,kafkaOffset)
+  }
+
+  private def writeLong(outputStream: OutputStream, l: Long): Unit = {
+    val buffer = ByteBuffer.allocate(8)
+    buffer.putLong(l)
+    outputStream.write(buffer.array())
+  }
+
+  private def readLong(inputStream: InputStream):Long = {
+    val bytes = new Array[Byte](8)
+    val buffer = ByteBuffer.allocate(8)
+    inputStream.read(bytes,0,8)
+    buffer.put(bytes)
+    buffer.flip()
+    buffer.getLong
+  }
+}
+
+case class KafkaSnapshot(metadata: SnapshotMetadata, snapshot: Any) {
   def matches(criteria: SnapshotSelectionCriteria): Boolean =
     metadata.sequenceNr <= criteria.maxSequenceNr &&
       metadata.timestamp <= criteria.maxTimestamp
@@ -35,7 +78,6 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
     val out = new ByteArrayOutputStream
 
     writeInt(out, metadataBytes.length)
-    writeLong(out, ks.kafkaOffset)
     out.write(metadataBytes)
     out.write(snapshotBytes)
     out.toByteArray
@@ -44,14 +86,13 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
   def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): KafkaSnapshot = {
     val extension = SerializationExtension(system)
     val metadataLength = readInt(new ByteArrayInputStream(bytes))
-    val kafkaOffset = readLong(new ByteArrayInputStream(bytes.slice(4, metadataLength + 4)))
-    val metadataBytes = bytes.slice(12, metadataLength + 12)
-    val snapshotBytes = bytes.drop(metadataLength + 12)
+    val metadataBytes = bytes.slice(4, metadataLength + 4)
+    val snapshotBytes = bytes.drop(metadataLength + 4)
 
     val metadata = snapshotMetadataFromBinary(metadataBytes)
     val snapshot = extension.deserialize(snapshotBytes, classOf[Snapshot]).get
 
-    KafkaSnapshot(metadata, kafkaOffset, snapshot.data)
+    KafkaSnapshot(metadata, snapshot.data)
   }
 
   def snapshotMetadataToBinary(metadata: SnapshotMetadata): Array[Byte] = {
@@ -76,19 +117,4 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
 
   private def readInt(inputStream: InputStream) =
     (0 to 24 by 8).foldLeft(0) { (id, shift) ⇒ id | (inputStream.read() << shift) }
-
-  private def writeLong(outputStream: OutputStream, l: Long): Unit = {
-    val buffer = ByteBuffer.allocate(8)
-    buffer.putLong(l)
-    outputStream.write(buffer.array())
-  }
-
-  private def readLong(inputStream: InputStream):Long = {
-    val bytes = new Array[Byte](8)
-    val buffer = ByteBuffer.allocate(8)
-    inputStream.read(bytes,0,8)
-    buffer.put(bytes)
-    buffer.flip()
-    buffer.getLong
-  }
 }

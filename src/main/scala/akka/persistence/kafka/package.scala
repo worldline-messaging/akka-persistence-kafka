@@ -12,6 +12,9 @@ package object kafka {
   def journalTopic(persistenceId: String): String =
     persistenceId.replaceAll("[^\\w\\._-]", "_")
 
+  def sequenceTopic(persistenceId: String): String =
+    s"sequence-${journalTopic(persistenceId)}"
+
   def configToProperties(config: Config, extra: Map[String, String] = Map.empty): Map[String, String] = {
 
     config.entrySet.asScala.map { entry =>
@@ -20,13 +23,13 @@ package object kafka {
 
   }
 
-  def sendFuture[K, V](p: KafkaProducer[K, V], rec: ProducerRecord[K, V]): Future[Unit] = {
-    val promise = Promise[Unit]()
+  def sendFuture[K, V](p: KafkaProducer[K, V], rec: ProducerRecord[K, V]): Future[RecordMetadata] = {
+    val promise = Promise[RecordMetadata]()
     p.send(
       rec,
-      (_: RecordMetadata, exception: Exception) ⇒ {
+      (rm: RecordMetadata, exception: Exception) ⇒ {
         if (exception == null) {
-          promise.complete(Success())
+          promise.complete(Success(rm))
           ()
         } else {
           promise.complete(Failure(exception))

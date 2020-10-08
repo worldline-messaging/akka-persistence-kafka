@@ -61,7 +61,7 @@ class KafkaSnapshotStoreViewer extends Actor with MetadataConsumer with ActorLog
   }
 
   private def snapshotTopic(persistenceId: String): String =
-    s"${config.prefix}${journalTopic(persistenceId)}"
+    s"${config.prefixSnapshot}${journalTopic(persistenceId)}"
 
   def load(topic: String, matcher: KafkaSnapshot => Boolean): Unit = {
     val offset = nextOffsetFor(config.snapshotConsumerConfig, topic, config.partition)
@@ -126,13 +126,23 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     }
   }
 
-  def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
+  private def saveSequenceOffset(metadata: SnapshotMetadata):Future[Long]= {
     highestJournalSequenceNr(metadata.persistenceId).flatMap { highest =>
-      val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, highest, snapshot)).get
-      val snapshotMessage = new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
-
+      val sequenceBytes = serialization.serialize(KafkaSequenceOffset(metadata.sequenceNr,highest)).get
+      val snapshotMessage = new ProducerRecord[String, Array[Byte]](sequenceTopic(metadata.persistenceId), "static", sequenceBytes)
       // TODO: take a producer from a pool ?
-      sendFuture(snapshotProducer, snapshotMessage)
+      sendFuture(snapshotProducer, snapshotMessage).map(_ => highest)
+    }
+  }
+
+  def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
+    saveSequenceOffset(metadata).flatMap {highest =>
+      val snapshotBytes = serialization.serialize(KafkaSnapshot(metadata, snapshot)).get
+      val snapshotMessage = new ProducerRecord[String, Array[Byte]](snapshotTopic(metadata.persistenceId), "static", snapshotBytes)
+      // TODO: take a producer from a pool ?
+      sendFuture(snapshotProducer, snapshotMessage).map{_ =>
+        println(s"Snaphot ${metadata.persistenceId} with snr ${metadata.sequenceNr} at offset ${highest}")
+      }
     }
   }
 
@@ -155,7 +165,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
           !singleDeletions(persistenceId).contains(snapshot.metadata) &&
           !singleDeletions(persistenceId).filter(_.timestamp == 0L).map(_.sequenceNr).contains(snapshot.metadata.sequenceNr)
 
-        load(topic, matcher).map(s => SelectedSnapshot(s.metadata.copy(sequenceNr = s.kafkaOffset), s.snapshot))
+        load(topic, matcher).map(s => SelectedSnapshot(s.metadata, s.snapshot))
       }
     } yield snapshot
   }
@@ -195,6 +205,6 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
   }
 
   private def snapshotTopic(persistenceId: String): String =
-    s"${config.prefix}${journalTopic(persistenceId)}"
+    s"${config.prefixSnapshot}${journalTopic(persistenceId)}"
 }
 
