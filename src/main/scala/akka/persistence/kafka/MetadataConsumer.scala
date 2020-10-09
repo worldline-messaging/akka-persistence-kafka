@@ -3,7 +3,7 @@ package akka.persistence.kafka
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 trait MetadataConsumer {
 

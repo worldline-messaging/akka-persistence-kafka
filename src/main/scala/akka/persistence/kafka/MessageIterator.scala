@@ -5,7 +5,7 @@ import java.time.Duration
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class MessageIterator(consumerConfig:Map[String,Object], topic: String, partition: Int, offset: Long, timeOut: Duration) extends Iterator[ConsumerRecord[String, Array[Byte]]] {
 

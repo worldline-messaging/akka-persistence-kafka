@@ -2,6 +2,8 @@ Kafka Plugins for Akka Persistence
 ==================================
 This is a fork of the [Krasserm project](https://github.com/krasserm/akka-persistence-kafka). It has been deployed in production and works well on our environments.
 
+This is not a fully compliant akka persistence implementation. The use of persistAll and persistAllAsync is not supported. 
+
 Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.5.19/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
 
 [![Build Status](https://travis-ci.org/worldline-messaging/akka-persistence-kafka.svg?branch=travis)](https://travis-ci.org/worldline-messaging/akka-persistence-kafka)
@@ -187,6 +189,7 @@ There are many other libraries that can be used to consume (event) streams from 
 
 - The journal plugin does not support features that have been deprecated in Akka 2.3.4 (channels and single event deletions).
 - Range deletions are not persistent (which may not be relevant for applications that configure Kafka with reasonably small retention times).
+- The use of persistAll and persistAllAsync is not supported. This will raise an UnsupportedOperationException. The reason is kafka makes gaps in offsets when we use transactions. And we need offsets to be contiguous if we want to respect the sequence number of the Akka persistence API. And the only way to ensure atomicity with kafka is to use transactions. 
 
 Snapshot store plugin
 ---------------------

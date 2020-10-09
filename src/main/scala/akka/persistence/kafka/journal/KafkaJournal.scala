@@ -16,7 +16,7 @@ import akka.persistence.kafka.journal.KafkaJournalProtocol._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.errors.{OutOfOrderSequenceException, ProducerFencedException}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 private case class SeqOfAtomicWritesPromises(messages: Seq[(AtomicWrite,Promise[Unit])])
 private case object CloseWriter

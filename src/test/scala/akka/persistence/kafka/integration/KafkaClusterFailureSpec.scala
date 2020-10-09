@@ -21,7 +21,7 @@ import org.junit.Test
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import org.scalatest.Assertions.intercept
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.immutable.Seq
 
 class KafkaServerTest extends ZooKeeperTestHarness {

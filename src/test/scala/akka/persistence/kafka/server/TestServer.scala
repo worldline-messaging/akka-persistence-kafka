@@ -7,7 +7,7 @@ import kafka.integration.KafkaServerTestHarness
 import kafka.server._
 import kafka.utils.TestUtils
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object ConfigurationOverride {
 
