@@ -2,7 +2,7 @@ organization := "com.github.worldline-messaging"
 
 name := "akka-persistence-kafka"
 
-version := "0.9.6-SNAPSHOT"
+version := "0.9.6"
 
 scalaVersion := "2.13.2"
 
