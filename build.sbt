@@ -43,7 +43,7 @@ libraryDependencies ++= Seq(
   artifact.name + "_" + sv.binary + "-" + suffix + "." + artifact.extension
 }*/
 
-publishTo := Some("Bintray API Realm" at "https://api.bintray.com/maven/worldline-messaging-org/maven/akka-persistence-kafka;publish=1")
-credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
+publishTo := Some("GitHub Package Registry" at "https://maven.pkg.github.com/worldline-messaging/akka-persistence-kafka")
+credentials += Credentials(Path.userHome / ".ivy2" / ".credentials_github")
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
