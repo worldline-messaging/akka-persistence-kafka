@@ -17,7 +17,7 @@ To include the Kafka plugins into your `sbt` project, add the following lines to
 
     libraryDependencies += "com.github.worldline-messaging" %% "akka-persistence-kafka" % “0.9.6”
 
-This version of `akka-persistence-kafka` depends on Kafka 2.1.0, Akka 2.5.19 and is cross-built against Scala 2.12.3. A complete list of released versions is [here](https://github.com/worldline-messaging/akka-persistence-kafka/wiki/Releases).
+This version of `akka-persistence-kafka` depends on Kafka 2.4.1, Akka 2.6.5 and is cross-built against Scala 2.12.8/2.13.2. A complete list of released versions is [here](https://github.com/worldline-messaging/akka-persistence-kafka/wiki/Releases).
 
 Usage hints
 -----------
