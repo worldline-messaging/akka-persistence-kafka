@@ -13,9 +13,9 @@ Dependency
 
 To include the Kafka plugins into your `sbt` project, add the following lines to your `build.sbt` file:
 
-    resolvers += "worldline-messaging at bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
+    resolvers += "GitHub Package Registry" at "https://maven.pkg.github.com/worldline-messaging/akka-persistence-kafka"
 
-    libraryDependencies += "com.github.worldline-messaging" %% "akka-persistence-kafka" % “0.9.0”
+    libraryDependencies += "com.github.worldline-messaging" %% "akka-persistence-kafka" % “0.9.6”
 
 This version of `akka-persistence-kafka` depends on Kafka 2.1.0, Akka 2.5.19 and is cross-built against Scala 2.12.3. A complete list of released versions is [here](https://github.com/worldline-messaging/akka-persistence-kafka/wiki/Releases).
 
