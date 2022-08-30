@@ -2,20 +2,18 @@ organization := "com.github.worldline-messaging"
 
 name := "akka-persistence-kafka"
 
-version := "0.9.6"
+version := "0.9.7"
 
 scalaVersion := "2.13.2"
 
 crossScalaVersions := Seq("2.12.8", "2.13.2")
 
-resolvers += "worldline-messaging at bintray" at "https://dl.bintray.com/worldline-messaging-org/maven"
-
 parallelExecution in Test := false
 
 publishArtifact in Test := true
 
-val akkaVersion = "2.6.5"
-val kafkaVersion = "2.4.1"
+val akkaVersion = "2.6.19"
+val kafkaVersion = "2.8.1"
 
 libraryDependencies ++= Seq(
   "com.google.protobuf"  % "protobuf-java"                 % "2.6.1",

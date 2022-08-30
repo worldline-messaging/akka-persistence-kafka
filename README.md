@@ -4,7 +4,7 @@ This is a fork of the [Krasserm project](https://github.com/krasserm/akka-persis
 
 This is not a fully compliant akka persistence implementation. The use of persistAll and persistAllAsync is not supported. 
 
-Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.5.19/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
+Replicated [Akka Persistence](http://doc.akka.io/docs/akka/2.6.19/scala/persistence.html) journal and snapshot store backed by [Apache Kafka](http://kafka.apache.org/).
 
 [![Build Status](https://travis-ci.org/worldline-messaging/akka-persistence-kafka.svg?branch=travis)](https://travis-ci.org/worldline-messaging/akka-persistence-kafka)
 
