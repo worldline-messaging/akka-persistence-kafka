@@ -42,6 +42,6 @@ libraryDependencies ++= Seq(
 }*/
 
 publishTo := Some("GitHub Package Registry" at "https://maven.pkg.github.com/worldline-messaging/akka-persistence-kafka")
-credentials += Credentials(Path.userHome / ".ivy2" / ".credentials_github")
+credentials += Credentials(Path.userHome / ".ivy2" / ".github_credentials")
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
