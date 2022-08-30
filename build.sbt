@@ -25,7 +25,7 @@ libraryDependencies ++= Seq(
   "org.apache.kafka"    %% "kafka"                         % kafkaVersion  % Test classifier "test",
   "org.apache.kafka"         % "kafka-clients"            % kafkaVersion,
   "org.apache.kafka"         % "kafka-clients"            % kafkaVersion % Test classifier "test",
-  "org.apache.curator"   % "curator-test"                  % "3.3.0"    % Test,
+  "org.apache.curator"   % "curator-test"                  % "5.3.0"    % Test,
   "org.slf4j" 		 % "slf4j-log4j12" 		   % "1.7.28"	% Test,
   "com.typesafe.akka" 	%% "akka-slf4j" 		   % akkaVersion	% Test
 )
