@@ -2,7 +2,6 @@ package akka.persistence.kafka.integration
 
 import java.time.Duration
 import java.util.{Properties, UUID}
-
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.persistence.JournalProtocol.{WriteMessages, WriteMessagesFailed}
 import akka.persistence.kafka.integration.KafkaIntegrationSpec.TestPersistentActor
@@ -18,11 +17,12 @@ import kafka.zk.ZooKeeperTestHarness
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.apache.kafka.common.errors.TimeoutException
 import org.junit.Test
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.Assertions.intercept
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.jdk.CollectionConverters._
-import scala.collection.immutable.Seq
 
 class KafkaServerTest extends ZooKeeperTestHarness {
   def createServer(nodeId:Int, port:Int, serverProps:Properties = new Properties()): KafkaServer = {
@@ -33,7 +33,7 @@ class KafkaServerTest extends ZooKeeperTestHarness {
   }
 
   @Test
-  def testAlreadyRegisteredAdvertisedListeners() {
+  def testAlreadyRegisteredAdvertisedListeners(): Unit = {
     //start a server with a advertised listener
     val server1 = createServer(1, TestUtils.RandomPort)
 
@@ -72,19 +72,19 @@ object KafkaClusterFailureSpec {
       |kafka-journal.producer.delivery.timeout.ms = 2000
       |kafka-journal.producer.request.timeout.ms = 1000
       |
-      |kafka-journal.circuit-breaker.max-failures = 10
-      |kafka-journal.circuit-breaker.call-timeout = 30s
+      |kafka-journal.circuit-breaker.max-failures = 100
+      |kafka-journal.circuit-breaker.call-timeout = 100s
       |kafka-journal.circuit-breaker.reset-timeout = 60s
     """.stripMargin)
 }
-class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFailureSpec.config)) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
+class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFailureSpec.config)) with ImplicitSender with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   import kafka.utils.TestUtils._
 
   import KafkaClusterFailureSpec._
 
   val systemConfig: Config = system.settings.config
   val configApp: Config = config.withFallback(systemConfig)
-  val journalConfig = new KafkaJournalConfig(systemConfig.getConfig("kafka-journal"))
+  val journalConfig = new KafkaJournalConfig(configApp.getConfig("kafka-journal"))
 
   val serialization: Serialization = SerializationExtension(system)
   val eventDecoder = new EventDecoder(system)
@@ -103,6 +103,8 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
   serverProps.put("transaction.state.log.replication.factor","3")
   serverProps.put("transaction.state.log.min.isr","2")
   serverProps.put("offsets.topic.replication.factor","3")
+  serverProps.put("min.insync.replicas","2")
+
   var servers:Seq[KafkaServer] = List.empty
 
   val persistence: Persistence = Persistence(system)
@@ -144,19 +146,19 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
 
       val probe: TestProbe = TestProbe()
 
-      val msgs = (1 to 10).map { _ ⇒
-        PersistentRepr(payload = "1", sequenceNr = 3, persistenceId = persistenceId, sender = Actor.noSender,
+      (1 to 10).foreach { _ ⇒
+        val msg = PersistentRepr(payload = "1", sequenceNr = 3, persistenceId = persistenceId, sender = Actor.noSender,
           writerUuid = writerUuid)
+        journal ! WriteMessages(Seq(AtomicWrite(msg)), probe.ref, 1)
       }
-      journal ! WriteMessages(Seq(AtomicWrite(msgs)), probe.ref, 1)
 
       Thread.sleep(10000)
       servers.foreach(_.startup())
 
       probe.expectMsgPF() {
         case wmf:WriteMessagesFailed =>
-          wmf.cause.isInstanceOf[UnsupportedOperationException] shouldBe true
-          wmf.cause.getMessage.startsWith("persistAll cannot be used with akka peristence kafka") shouldBe true
+          wmf.cause.isInstanceOf[TimeoutException] shouldBe true
+          wmf.cause.getMessage.startsWith("Expiring 10 record(s) for pshutdown") shouldBe true
       }
 
       readJournal(persistenceId).map(_.payload) should be(Seq("a", "b", "c"))

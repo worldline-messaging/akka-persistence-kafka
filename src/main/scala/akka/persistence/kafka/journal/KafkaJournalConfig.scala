@@ -6,8 +6,6 @@ import kafka.utils._
 import org.apache.kafka.clients.producer.ProducerConfig
 
 class KafkaJournalConfig(config: Config) extends MetadataConsumerConfig(config) {
-  val writerTimeoutMs:Long = config.getLong("writer-timeout-ms")
-
   val pluginDispatcher: String =
     config.getString("plugin-dispatcher")
 
@@ -26,8 +24,8 @@ class KafkaJournalConfig(config: Config) extends MetadataConsumerConfig(config) 
   def eventProducerConfig(): Map[String,Object] =
     configToProperties(config.getConfig("event.producer"),
       Map(
-        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringSerializer",
-        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArraySerializer"
+        ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG   -> "org.apache.kafka.common.serialization.StringSerializer",
+        ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.ByteArraySerializer"
       )
     ) - "topic.mapper.class"
 }

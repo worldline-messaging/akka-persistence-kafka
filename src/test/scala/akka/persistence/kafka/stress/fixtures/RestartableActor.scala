@@ -7,7 +7,7 @@ import RestartableActor._
 
 trait RestartableActor extends PersistentActor {
 
-  abstract override def receiveCommand = super.receiveCommand orElse {
+  abstract override def receiveCommand: Receive = super.receiveCommand orElse {
     case RestartActor => throw RestartActorException
   }
 }

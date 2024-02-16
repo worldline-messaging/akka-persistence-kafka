@@ -19,7 +19,7 @@ class KafkaEventSerializer(system: ExtendedActorSystem) extends Serializer {
   def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef =
     event(EventFormat.parseFrom(bytes))
 
-  def eventFormatBuilder(event: Event): EventFormat.Builder = {
+  private def eventFormatBuilder(event: Event): EventFormat.Builder = {
     val builder = EventFormat.newBuilder
     builder.setPersistenceId(event.persistenceId)
     builder.setSequenceNr(event.sequenceNr)
@@ -27,7 +27,7 @@ class KafkaEventSerializer(system: ExtendedActorSystem) extends Serializer {
     builder
   }
 
-  def eventDataFormatBuilder(payload: AnyRef): EventDataFormat.Builder = {
+  private def eventDataFormatBuilder(payload: AnyRef): EventDataFormat.Builder = {
     val serializer = SerializationExtension(system).findSerializerFor(payload)
     val builder = EventDataFormat.newBuilder()
 
@@ -39,20 +39,17 @@ class KafkaEventSerializer(system: ExtendedActorSystem) extends Serializer {
     builder
   }
 
-  def event(eventFormat: EventFormat): Event = {
+  private def event(eventFormat: EventFormat): Event = {
     Event(
       eventFormat.getPersistenceId,
       eventFormat.getSequenceNr,
       eventData(eventFormat.getData))
   }
 
-  def eventData(eventDataFormat: EventDataFormat): Any = {
-    val eventDataClass = if (eventDataFormat.hasDataManifest)
-      Some(system.dynamicAccess.getClassFor[AnyRef](eventDataFormat.getDataManifest.toStringUtf8).get) else None
-
+  private def eventData(eventDataFormat: EventDataFormat): Any = {
     SerializationExtension(system).deserialize(
       eventDataFormat.getData.toByteArray,
       eventDataFormat.getSerializerId,
-      eventDataClass).get
+      eventDataFormat.getDataManifest.toStringUtf8).get
   }
 }

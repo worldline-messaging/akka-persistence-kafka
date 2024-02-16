@@ -23,7 +23,7 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
     case _                 => throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
   }
 
-  def snapshotToBinary(ks: KafkaSnapshot): Array[Byte] = {
+  private def snapshotToBinary(ks: KafkaSnapshot): Array[Byte] = {
     val extension = SerializationExtension(system)
     val snapshot = Snapshot(ks.snapshot)
     val snapshotSerializer = extension.findSerializerFor(snapshot)
@@ -51,7 +51,7 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
     KafkaSnapshot(metadata, snapshot.data)
   }
 
-  def snapshotMetadataToBinary(metadata: SnapshotMetadata): Array[Byte] = {
+  private def snapshotMetadataToBinary(metadata: SnapshotMetadata): Array[Byte] = {
     SnapshotMetadataFormat.newBuilder()
       .setPersistenceId(metadata.persistenceId)
       .setSequenceNr(metadata.sequenceNr)
@@ -60,7 +60,7 @@ class KafkaSnapshotSerializer(system: ExtendedActorSystem) extends Serializer {
       .toByteArray
   }
 
-  def snapshotMetadataFromBinary(metadataBytes: Array[Byte]): SnapshotMetadata = {
+  private def snapshotMetadataFromBinary(metadataBytes: Array[Byte]): SnapshotMetadata = {
     val md = SnapshotMetadataFormat.parseFrom(metadataBytes)
     SnapshotMetadata(
       md.getPersistenceId,

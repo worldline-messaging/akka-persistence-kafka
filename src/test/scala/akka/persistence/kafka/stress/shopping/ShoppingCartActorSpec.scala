@@ -2,16 +2,18 @@ package akka.persistence.kafka.stress.shopping
 
 import akka.actor.{ActorSystem, PoisonPill}
 import akka.testkit.{ImplicitSender, TestKit}
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
 import ShoppingCartActor._
 import akka.persistence.kafka.server.{ConfigurationOverride, KafkaTest}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 //Just an integration of https://github.com/tudorzgureanu/akka-persistence-playground.git
 
 class ShoppingCartActorSpec
   extends TestKit(ActorSystem("ShoppingCartActorSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with BeforeAndAfterAll
     with ImplicitSender
@@ -30,7 +32,7 @@ class ShoppingCartActorSpec
 
   ConfigurationOverride.configApp = config.withFallback(systemConfig)
 
-  override def afterAll: Unit = {
+  override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }

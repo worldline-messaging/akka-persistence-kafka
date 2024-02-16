@@ -18,7 +18,7 @@ import scala.jdk.CollectionConverters._
 import scala.io.StdIn
 
 object KafkaSnapshotStoreViewer extends App {
-  case class ViewSnapshots (persistenceId:String)
+  private case class ViewSnapshots (persistenceId:String)
 
   if (args.length == 0) {
     println("dude, i need at least one parameter")
@@ -79,7 +79,7 @@ class KafkaSnapshotStoreViewer extends Actor with MetadataConsumer with ActorLog
   }
 
   override def receive: Receive = {
-    case ViewSnapshots(persistenceId) => {
+    case ViewSnapshots(persistenceId) =>
       val highest = Await.result(highestJournalSequenceNr(persistenceId),5.seconds)
       println(s"highest=$highest")
       val criteria = SnapshotSelectionCriteria.Latest
@@ -90,7 +90,6 @@ class KafkaSnapshotStoreViewer extends Actor with MetadataConsumer with ActorLog
       def matcher(snapshot: KafkaSnapshot): Boolean = snapshot.matches(adjusted)
 
       load(snapshotTopic(persistenceId),matcher)
-    }
   }
 }
 
@@ -99,21 +98,21 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
 
   val extension: Persistence = Persistence(context.system)
 
-  type RangeDeletions = Map[String, SnapshotSelectionCriteria]
-  type SingleDeletions = Map[String, List[SnapshotMetadata]]
+  private type RangeDeletions = Map[String, SnapshotSelectionCriteria]
+  private type SingleDeletions = Map[String, List[SnapshotMetadata]]
 
   val serialization: Serialization = SerializationExtension(context.system)
   val config = new KafkaSnapshotStoreConfig(context.system.settings.config.getConfig("kafka-snapshot-store"))
 
-  val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)
+  private val snapshotProducer = new KafkaProducer[String, Array[Byte]](config.producerConfig().asJava)
 
   override def postStop(): Unit = {
     super.postStop()
   }
 
   // Transient deletions only to pass TCK (persistent not supported)
-  var rangeDeletions: RangeDeletions = Map.empty.withDefaultValue(SnapshotSelectionCriteria.None)
-  var singleDeletions: SingleDeletions = Map.empty.withDefaultValue(Nil)
+  private var rangeDeletions: RangeDeletions = Map.empty.withDefaultValue(SnapshotSelectionCriteria.None)
+  private var singleDeletions: SingleDeletions = Map.empty.withDefaultValue(Nil)
 
   def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = Future.successful {
     rangeDeletions += (persistenceId -> criteria)
@@ -158,7 +157,7 @@ class KafkaSnapshotStore extends SnapshotStore with MetadataConsumer with ActorL
     } yield snapshot
   }
 
-  def load(topic: String, matcher: KafkaSnapshot => Boolean): Option[KafkaSnapshot] = {
+  private def load(topic: String, matcher: KafkaSnapshot => Boolean): Option[KafkaSnapshot] = {
     val offset = nextOffsetFor(config.snapshotConsumerConfig, topic, config.partition)
 
     @annotation.tailrec

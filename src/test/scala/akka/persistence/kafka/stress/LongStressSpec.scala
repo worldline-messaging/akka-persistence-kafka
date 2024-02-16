@@ -8,7 +8,9 @@ import akka.persistence.kafka.stress.fixtures.RestartableActor.RestartActor
 import akka.persistence.scalatest.OptionalTests
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
 
 import scala.util.Random
 
@@ -46,7 +48,7 @@ class CounterActor(id: String) extends PersistentActor {
 }
 
 class LongStressSpec extends TestKit(ActorSystem("LongStressSpec"))
-  with WordSpecLike
+  with AnyWordSpecLike
   with Matchers
   with BeforeAndAfterAll
   with ImplicitSender

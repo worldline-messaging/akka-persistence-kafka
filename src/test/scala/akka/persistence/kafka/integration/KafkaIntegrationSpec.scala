@@ -2,8 +2,6 @@ package akka.persistence.kafka.integration
 
 import java.time.Duration
 import java.util.UUID
-
-import scala.collection.immutable.Seq
 import akka.actor._
 import akka.persistence.JournalProtocol.{WriteMessages, WriteMessagesFailed}
 import akka.persistence._
@@ -15,8 +13,9 @@ import akka.persistence.kafka.snapshot.KafkaSnapshotStoreConfig
 import akka.serialization.{Serialization, SerializationExtension, Serializer}
 import akka.testkit._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest._
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 object KafkaIntegrationSpec {
   val config: Config = ConfigFactory.parseString(
@@ -25,6 +24,9 @@ object KafkaIntegrationSpec {
       |akka.persistence.snapshot-store.plugin = "kafka-snapshot-store"
       |akka.test.single-expect-default = 20s
       |kafka-journal.event.producer.request.required.acks = 1
+      |kafka-journal.circuit-breaker.max-failures = 100
+      |kafka-journal.circuit-breaker.call-timeout = 100s
+      |kafka-journal.circuit-breaker.reset-timeout = 60s
       |akka {
       |  actor {
       |    serializers {
@@ -74,7 +76,7 @@ class BadEventSerializer extends Serializer {
   override def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef = throw new IllegalStateException("Unable to deserialize. It's a bad event")
 }
 
-class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config)) with ImplicitSender with WordSpecLike with Matchers with KafkaTest {
+class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config)) with ImplicitSender with AnyWordSpecLike with Matchers with KafkaTest {
   import KafkaIntegrationSpec._
 
   val systemConfig: Config = system.settings.config
@@ -150,8 +152,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
     "consider a batch as failed on fatal exception" in {
       val writerUuid = UUID.randomUUID.toString
       val msgs = (1 to 10).map { i ⇒
-        val p = if(i==5) new BadEvent else s"b-$i"
-        PersistentRepr(payload = p, sequenceNr = i, persistenceId = "npe", sender = Actor.noSender,
+        PersistentRepr(payload = s"b-$i", sequenceNr = i, persistenceId = "npe", sender = Actor.noSender,
           writerUuid = writerUuid)
       }
 
@@ -162,7 +163,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
       probe.expectMsgPF() {
         case wmf:WriteMessagesFailed =>
           wmf.cause.isInstanceOf[UnsupportedOperationException] shouldBe true
-          wmf.cause.getMessage shouldBe "persistAll cannot be used with akka peristence kafka"
+          wmf.cause.getMessage shouldBe "persistAll cannot be used with akka persistence kafka"
       }
     }
   }

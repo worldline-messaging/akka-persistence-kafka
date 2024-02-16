@@ -14,8 +14,8 @@ class MetadataConsumerConfig(config: Config) {
     configToProperties(
       config.getConfig("consumer"),
       Map(
-        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringDeserializer",
-        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   -> "org.apache.kafka.common.serialization.StringDeserializer",
+        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.ByteArrayDeserializer"
       )
     ) - "poll-timeout"
 
@@ -23,8 +23,8 @@ class MetadataConsumerConfig(config: Config) {
     configToProperties(
       config.getConfig("consumer"),
       Map(
-        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   → "org.apache.kafka.common.serialization.StringDeserializer",
-        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG → "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG   -> "org.apache.kafka.common.serialization.StringDeserializer",
+        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.ByteArrayDeserializer"
       )
     ) - "poll-timeout"
 }

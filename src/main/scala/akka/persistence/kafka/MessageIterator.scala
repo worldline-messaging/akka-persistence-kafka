@@ -12,9 +12,9 @@ class MessageIterator(consumerConfig:Map[String,Object], topic: String, partitio
   val consumer = new KafkaConsumer[String, Array[Byte]](consumerConfig.asJava)
   var iter: Iterator[ConsumerRecord[String, Array[Byte]]] = iterator(offset)
   var readMessages = 0
-  var nextOffset: Long = offset
+  private var nextOffset: Long = offset
 
-  def iterator(offset: Long): Iterator[ConsumerRecord[String, Array[Byte]]] = {
+  private def iterator(offset: Long): Iterator[ConsumerRecord[String, Array[Byte]]] = {
     val tp = new TopicPartition(topic,partition)
     consumer.assign(List(tp).asJava)
     consumer.seek(tp,offset)
