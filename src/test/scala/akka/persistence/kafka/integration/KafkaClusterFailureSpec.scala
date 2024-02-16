@@ -22,6 +22,7 @@ import org.scalatest.Assertions.intercept
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
+import scala.collection._
 import scala.jdk.CollectionConverters._
 
 class KafkaServerTest extends ZooKeeperTestHarness {
@@ -149,7 +150,7 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
       (1 to 10).foreach { _ ⇒
         val msg = PersistentRepr(payload = "1", sequenceNr = 3, persistenceId = persistenceId, sender = Actor.noSender,
           writerUuid = writerUuid)
-        journal ! WriteMessages(Seq(AtomicWrite(msg)), probe.ref, 1)
+        journal ! WriteMessages(immutable.Seq(AtomicWrite(msg)), probe.ref, 1)
       }
 
       Thread.sleep(10000)
@@ -162,7 +163,7 @@ class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFa
       }
 
       readJournal(persistenceId).map(_.payload) should be(Seq("a", "b", "c"))
-      writeJournal(Seq("d", "e", "f"), actor)
+      writeJournal(immutable.Seq("d", "e", "f"), actor)
       readJournal(persistenceId).map(_.payload) should be(Seq("a", "b", "c", "d", "e", "f"))
     }
 

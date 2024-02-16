@@ -16,6 +16,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import scala.collection._
 
 object KafkaIntegrationSpec {
   val config: Config = ConfigFactory.parseString(
@@ -157,7 +158,7 @@ class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationS
       }
 
       val probe = TestProbe()
-      journal ! WriteMessages(Seq(AtomicWrite(msgs)), probe.ref, 1)
+      journal ! WriteMessages(immutable.Seq(AtomicWrite(msgs)), probe.ref, 1)
 
 
       probe.expectMsgPF() {
