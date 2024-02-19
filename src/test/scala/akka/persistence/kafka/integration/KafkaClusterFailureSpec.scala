@@ -17,10 +17,9 @@ import kafka.zk.ZooKeeperTestHarness
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.apache.kafka.common.errors.TimeoutException
 import org.junit.Test
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import org.scalatest.Assertions.intercept
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+import scala.collection.immutable.Seq
 
 import scala.jdk.CollectionConverters._
 
@@ -77,7 +76,7 @@ object KafkaClusterFailureSpec {
       |kafka-journal.circuit-breaker.reset-timeout = 60s
     """.stripMargin)
 }
-class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFailureSpec.config)) with ImplicitSender with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+class KafkaClusterFailureSpec extends TestKit(ActorSystem("test", KafkaClusterFailureSpec.config)) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
   import kafka.utils.TestUtils._
 
   import KafkaClusterFailureSpec._

@@ -6,8 +6,8 @@ import akka.persistence.PersistentActor
 import akka.persistence.kafka.server._
 import akka.testkit._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{Matchers, WordSpecLike}
+
 
 object KafkaLoadSpec {
   val config: Config = ConfigFactory.parseString(
@@ -60,7 +60,7 @@ object KafkaLoadSpec {
   }
 }
 
-class KafkaLoadSpec extends TestKit(ActorSystem("test", KafkaLoadSpec.config)) with ImplicitSender with AnyWordSpecLike with Matchers with KafkaTest {
+class KafkaLoadSpec extends TestKit(ActorSystem("test", KafkaLoadSpec.config)) with ImplicitSender with WordSpecLike with Matchers with KafkaTest {
   import KafkaLoadSpec._
 
   val systemConfig: Config = system.settings.config

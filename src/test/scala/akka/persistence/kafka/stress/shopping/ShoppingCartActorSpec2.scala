@@ -2,20 +2,19 @@ package akka.persistence.kafka.stress.shopping
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.{ImplicitSender, TestKit}
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import ShoppingCartActor._
 import akka.persistence.kafka.server.{ConfigurationOverride, KafkaTest}
 import akka.persistence.kafka.stress.fixtures.RestartableActor
 import akka.persistence.kafka.stress.fixtures.RestartableActor._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+
 
 //Just an integration of https://github.com/tudorzgureanu/akka-persistence-playground.git
 
 class ShoppingCartActorSpec2
   extends TestKit(ActorSystem("ShoppingCartActorSpec2"))
-    with AnyWordSpecLike
+    with WordSpecLike
     with Matchers
     with BeforeAndAfterAll
     with ImplicitSender

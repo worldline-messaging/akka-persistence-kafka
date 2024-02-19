@@ -14,8 +14,8 @@ import akka.serialization.{Serialization, SerializationExtension, Serializer}
 import akka.testkit._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{Matchers, WordSpecLike}
+import scala.collection.immutable.Seq
 
 object KafkaIntegrationSpec {
   val config: Config = ConfigFactory.parseString(
@@ -76,7 +76,7 @@ class BadEventSerializer extends Serializer {
   override def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef = throw new IllegalStateException("Unable to deserialize. It's a bad event")
 }
 
-class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config)) with ImplicitSender with AnyWordSpecLike with Matchers with KafkaTest {
+class KafkaIntegrationSpec extends TestKit(ActorSystem("test", KafkaIntegrationSpec.config)) with ImplicitSender with WordSpecLike with Matchers with KafkaTest {
   import KafkaIntegrationSpec._
 
   val systemConfig: Config = system.settings.config
