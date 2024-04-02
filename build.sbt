@@ -41,7 +41,7 @@ libraryDependencies ++= Seq(
   artifact.name + "_" + sv.binary + "-" + suffix + "." + artifact.extension
 }*/
 
-publishTo := Some("GitHub Package Registry" at "https://maven.pkg.github.com/worldline-messaging/akka-persistence-kafka")
-credentials += Credentials(Path.userHome / ".ivy2" / ".github_credentials")
+publishTo := Some("Kazan releases nexus" at "https://nexus.kazan.myworldline.com/repository/messaging-maven-releases")
+credentials += Credentials(Path.userHome / ".ivy2" / ".kazan_nexus_credentials")
 
 licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
