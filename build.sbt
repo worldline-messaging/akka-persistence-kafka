@@ -2,7 +2,7 @@ organization := "com.github.worldline-messaging"
 
 name := "akka-persistence-kafka"
 
-version := "0.9.8-AWL-AKKA2.5"
+version := "0.9.9-AWL-AKKA2.5"
 
 scalaVersion := "2.12.17"
 
@@ -12,7 +12,7 @@ Test / parallelExecution := false
 
 Test / publishArtifact := true
 
-val akkaVersion = "2.5.26"
+val akkaVersion = "2.5.31"
 val kafkaVersion = "2.8.1"
 
 libraryDependencies ++= Seq(
